@@ -115,10 +115,36 @@ class WorkshopSessionSerializer(serializers.ModelSerializer):
                 pass
         return None
 
+class StudentListSerializer(serializers.ModelSerializer):
+    group_code = serializers.ReadOnlyField(source='group.code')
+    badges = serializers.SerializerMethodField()
+    profile_picture = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Student
+        fields = ('id', 'name', 'points', 'group_code', 'badges', 'profile_picture')
+
+    def get_badges(self, obj):
+        student_badges = StudentBadge.objects.filter(student=obj).select_related('badge')
+        return BadgeSerializer([sb.badge for sb in student_badges], many=True).data
+
+    def get_profile_picture(self, obj):
+        if not obj.profile_picture:
+            return None
+        url = obj.profile_picture.url
+        if url.startswith(('http://', 'https://')):
+            return url
+        request = self.context.get('request')
+        if request:
+            return request.build_absolute_uri(url)
+        return url
+
+
 class StudentSerializer(serializers.ModelSerializer):
     group_details = GroupSerializer(source='group', read_only=True)
     badges = serializers.SerializerMethodField()
     stats = serializers.SerializerMethodField()
+    profile_picture = serializers.SerializerMethodField()
 
     class Meta:
         model = Student
@@ -127,6 +153,17 @@ class StudentSerializer(serializers.ModelSerializer):
     def get_badges(self, obj):
         student_badges = StudentBadge.objects.filter(student=obj).select_related('badge')
         return BadgeSerializer([sb.badge for sb in student_badges], many=True).data
+
+    def get_profile_picture(self, obj):
+        if not obj.profile_picture:
+            return None
+        url = obj.profile_picture.url
+        if url.startswith(('http://', 'https://')):
+            return url
+        request = self.context.get('request')
+        if request:
+            return request.build_absolute_uri(url)
+        return url
 
     def get_stats(self, obj):
         event = Event.get_current()

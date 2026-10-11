@@ -3,32 +3,56 @@
 {% block title %}تسجيل الحضور بالـ QR - Tech Day{% endblock %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto space-y-6">
-    <!-- Header Section -->
-    <div class="relative z-50 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/40 backdrop-blur-xl border border-slate-800 p-6 rounded-3xl">
-        <div class="flex items-center gap-4">
-            <div class="p-3 rounded-2xl bg-cyan-500/10 text-cyan-400">
-                <i data-lucide="qr-code" class="w-8 h-8"></i>
+<div class="max-w-6xl mx-auto space-y-4 px-2 sm:px-4">
+    <!-- Session Info Banner (when scanning a specific session) -->
+    {% if session %}
+    <div class="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+            <div class="p-2.5 rounded-xl bg-indigo-500/20 text-indigo-400 shrink-0">
+                <i data-lucide="presentation" class="w-5 h-5"></i>
             </div>
-            <div>
-                <h1 class="text-2xl font-black text-slate-100">ماسح الحضور الذكي</h1>
-                <p class="text-sm text-slate-400 font-medium">سجل حضور الطلاب بسرعة وسهولة عبر QR</p>
+            <div class="min-w-0">
+                <div class="text-sm font-black text-slate-100 truncate">{{ session.workshop.title }}</div>
+                <div class="flex items-center gap-3 text-[11px] text-slate-400 mt-0.5">
+                    <span class="flex items-center gap-1">
+                        <i data-lucide="users" class="w-3 h-3"></i>
+                        {{ session.group.code }}
+                    </span>
+                    <span class="flex items-center gap-1">
+                        <i data-lucide="map-pin" class="w-3 h-3"></i>
+                        {{ session.workshop.room }}
+                    </span>
+                    <span class="flex items-center gap-1">
+                        <i data-lucide="clock" class="w-3 h-3"></i>
+                        {{ session.start_time|time:"H:i" }} - {{ session.end_time|time:"H:i" }}
+                    </span>
+                </div>
             </div>
         </div>
-        <div class="flex items-center gap-2 bg-slate-800/50 p-1.5 rounded-2xl border border-slate-700/50">
-            {% if session %}
-                <div class="flex items-center gap-2 mr-2">
-                    <form action="{% url 'attendance:mark_all_group_present' session.id %}" method="POST" onsubmit="return confirm('هل أنت متأكد من تسجيل حضور {{ checked_in_not_present_count }} طالب من مجموعة ({{ session.group.code }})؟ (سيتم تسجيل الطلاب الذين سجلوا حضوراً للفعالية فقط)');">
-                        {% csrf_token %}
-                        <button type="submit" 
-                                class="flex items-center gap-2 px-4 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-[11px] font-bold text-emerald-400 border border-emerald-500/20 transition-all active:scale-95 disabled:opacity-50 disabled:grayscale"
-                                {% if checked_in_not_present_count == 0 %}disabled{% endif %}>
-                            <i data-lucide="users" class="w-3.5 h-3.5"></i>
-                            تسجيل حضور المجموعة ({{ checked_in_not_present_count }})
-                        </button>
-                    </form>
-                </div>
-            {% endif %}
+        <form action="{% url 'attendance:mark_all_group_present' session.id %}" method="POST" onsubmit="return confirm('هل أنت متأكد من تسجيل حضور {{ checked_in_not_present_count }} طالب من مجموعة ({{ session.group.code }})؟');" class="shrink-0">
+            {% csrf_token %}
+            <button type="submit"
+                    class="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 text-xs font-black border border-emerald-500/30 transition-all active:scale-95 disabled:opacity-40"
+                    {% if checked_in_not_present_count == 0 %}disabled{% endif %}>
+                <i data-lucide="users" class="w-4 h-4"></i>
+                تسجيل حضور الكل ({{ checked_in_not_present_count }})
+            </button>
+        </form>
+    </div>
+    {% endif %}
+
+    <!-- Header Section -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/40 backdrop-blur-xl border border-slate-800 p-4 sm:p-6 rounded-3xl">
+        <div class="flex items-center gap-3 sm:gap-4">
+            <div class="p-2.5 sm:p-3 rounded-2xl bg-cyan-500/10 text-cyan-400 shrink-0">
+                <i data-lucide="qr-code" class="w-6 h-6 sm:w-8 sm:h-8"></i>
+            </div>
+            <div class="min-w-0">
+                <h1 class="text-xl sm:text-2xl font-black text-slate-100 truncate">ماسح الحضور الذكي</h1>
+                <p class="text-xs sm:text-sm text-slate-400 font-medium">سجل حضور الطلاب بسرعة وسهولة عبر QR</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2 bg-slate-800/50 p-1.5 rounded-2xl border border-slate-700/50 self-start sm:self-auto">
             <div id="scanner-indicator" class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 text-[11px] font-bold text-slate-500 transition-all">
                 <span class="w-2 h-2 rounded-full bg-slate-700 animate-pulse"></span>
                 <span id="scanner-text">جاري التحميل</span>
@@ -36,17 +60,16 @@
         </div>
     </div>
 
-    <div class="grid gap-6 lg:grid-cols-[1fr,350px]">
+    <div class="grid gap-4 lg:gap-6 lg:grid-cols-[1fr,340px]">
         <!-- Scanner Viewport -->
         <div class="space-y-4">
             <div class="relative group">
-                <!-- Scanner Decoration -->
-                <div class="absolute -top-2 -left-2 w-8 h-8 border-t-4 border-l-4 border-cyan-500 rounded-tl-lg z-10 opacity-50 group-hover:opacity-100 transition-opacity"></div>
-                <div class="absolute -top-2 -right-2 w-8 h-8 border-t-4 border-r-4 border-cyan-500 rounded-tr-lg z-10 opacity-50 group-hover:opacity-100 transition-opacity"></div>
-                <div class="absolute -bottom-2 -left-2 w-8 h-8 border-b-4 border-l-4 border-cyan-500 rounded-bl-lg z-10 opacity-50 group-hover:opacity-100 transition-opacity"></div>
-                <div class="absolute -bottom-2 -right-2 w-8 h-8 border-b-4 border-r-4 border-cyan-500 rounded-br-lg z-10 opacity-50 group-hover:opacity-100 transition-opacity"></div>
-                
-                <div id="reader" class="w-full aspect-square md:aspect-video rounded-3xl overflow-hidden bg-slate-950 border-2 border-slate-800 shadow-2xl shadow-cyan-500/5 relative">
+                <div class="absolute -top-2 -left-2 w-6 h-6 sm:w-8 sm:h-8 border-t-4 border-l-4 border-cyan-500 rounded-tl-lg z-10 opacity-50 group-hover:opacity-100 transition-opacity"></div>
+                <div class="absolute -top-2 -right-2 w-6 h-6 sm:w-8 sm:h-8 border-t-4 border-r-4 border-cyan-500 rounded-tr-lg z-10 opacity-50 group-hover:opacity-100 transition-opacity"></div>
+                <div class="absolute -bottom-2 -left-2 w-6 h-6 sm:w-8 sm:h-8 border-b-4 border-l-4 border-cyan-500 rounded-bl-lg z-10 opacity-50 group-hover:opacity-100 transition-opacity"></div>
+                <div class="absolute -bottom-2 -right-2 w-6 h-6 sm:w-8 sm:h-8 border-b-4 border-r-4 border-cyan-500 rounded-br-lg z-10 opacity-50 group-hover:opacity-100 transition-opacity"></div>
+
+                <div id="reader" class="w-full aspect-square rounded-2xl sm:rounded-3xl overflow-hidden bg-slate-950 border-2 border-slate-800 shadow-2xl shadow-cyan-500/5 relative">
                 </div>
 
                 <!-- Settings Overlay -->
@@ -132,7 +155,7 @@
                                        class="w-full pr-4 pl-4 py-3.5 rounded-2xl bg-slate-950 border border-slate-800 text-slate-200 placeholder:text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all font-bold text-sm"
                                        autocomplete="off" inputmode="numeric">
                             </div>
-                            <button id="manual-submit" class="px-5 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs shadow-lg shadow-cyan-500/20 transition-all active:scale-95 disabled:opacity-50">
+                            <button id="manual-submit" class="px-5 sm:px-6 py-3.5 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs sm:text-sm shadow-lg shadow-cyan-500/20 transition-all active:scale-95 disabled:opacity-50 shrink-0">
                                 تسجيل
                             </button>
                         </div>
@@ -142,7 +165,7 @@
         </div>
 
         <!-- Feedback Panel -->
-        <div class="space-y-4">
+        <div class="space-y-4 lg:sticky lg:top-4 lg:self-start">
             <h3 class="text-xs font-bold uppercase tracking-widest text-slate-500 px-2">الحالة والنتائج</h3>
             
             <div id="status-container" class="space-y-4">

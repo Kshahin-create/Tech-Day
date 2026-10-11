@@ -21,12 +21,12 @@ from dashboard.models import (
     StudentViolation, AdminLog, AppVersion
 )
 from attendance.models import Attendance
-from students.utils import check_and_award_badges
+from students.utils import check_and_award_badges, process_profile_picture
 from students.models import StudentEventStats
 from users.models import User
 
 from .serializers import (
-    UserSerializer, StudentSerializer, GroupSerializer, 
+    UserSerializer, StudentSerializer, StudentListSerializer, GroupSerializer, 
     EventSerializer, WorkshopSerializer, WorkshopSessionSerializer,
     AttendanceSerializer, WorkshopFeedbackSerializer, NotificationSerializer,
     StudentRegistrationSerializer, StudentWorkshopNoteSerializer, WorkshopResourceSerializer,
@@ -104,9 +104,6 @@ class EventViewSet(viewsets.ReadOnlyModelViewSet):
         return Event.objects.filter(is_active=True)
 
 class MaintenancePermission(permissions.BasePermission):
-    """
-    Global permission check for maintenance mode.
-    """
     def has_permission(self, request, view):
         event = Event.get_current()
         if event and event.is_maintenance_mode:
@@ -133,6 +130,13 @@ class MaintenancePermission(permissions.BasePermission):
 
             raise MaintenanceModeException(event.maintenance_facebook_url)
         return True
+
+
+class _AdminOnlyPermission(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and (
+            request.user.role == 'admin' or request.user.is_superuser
+        )
 
 
 class RegisterDeviceView(APIView):
@@ -227,6 +231,11 @@ class StudentViewSet(viewsets.ModelViewSet):
     serializer_class = StudentSerializer
     permission_classes = [permissions.IsAuthenticated, MaintenancePermission]
 
+    def get_serializer_class(self):
+        if self.action == 'list' and self.request.user.role not in ('admin', 'supervisor'):
+            return StudentListSerializer
+        return StudentSerializer
+
     @action(detail=False, methods=['get'])
     def me(self, request):
         try:
@@ -257,6 +266,20 @@ class StudentViewSet(viewsets.ModelViewSet):
                 pass
 
         return qs.order_by('-points', 'name')
+
+    def get_permissions(self):
+        if self.action in ('create', 'update', 'partial_update', 'destroy'):
+            return [_AdminOnlyPermission(), MaintenancePermission()]
+        return [permissions.IsAuthenticated(), MaintenancePermission()]
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if request.user.role not in ('admin', 'supervisor'):
+            student = Student.objects.filter(user=request.user).first()
+            if not student or student.pk != instance.pk:
+                raise PermissionDenied()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
 
     def update(self, request, *args, **kwargs):
         if request.user.role not in ['admin', 'supervisor']:
@@ -305,6 +328,54 @@ class StudentViewSet(viewsets.ModelViewSet):
         student.save()
         return Response({"success": True, "phone_number": student.phone_number})
 
+    @action(detail=True, methods=['post'], url_path='upload-profile-picture')
+    def upload_profile_picture(self, request, pk=None):
+        student = self.get_object()
+        user = request.user
+        if user.role not in ('admin', 'supervisor'):
+            own = Student.objects.filter(user=user).first()
+            if not own or own.pk != student.pk:
+                raise PermissionDenied()
+
+        picture = request.FILES.get('picture') or request.FILES.get('profile_picture')
+        if not picture:
+            return Response({"error": "picture file is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            processed = process_profile_picture(picture)
+        except Exception:
+            return Response({"error": "invalid_image_file"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if student.profile_picture:
+            try:
+                student.profile_picture.delete(save=False)
+            except Exception:
+                pass
+
+        student.profile_picture.save(processed.name, processed, save=True)
+        serializer = self.get_serializer(student)
+        return Response({
+            "success": True,
+            "profile_picture": serializer.data.get('profile_picture'),
+        })
+
+    @action(detail=True, methods=['post'], url_path='remove-profile-picture')
+    def remove_profile_picture(self, request, pk=None):
+        student = self.get_object()
+        user = request.user
+        if user.role not in ('admin', 'supervisor'):
+            own = Student.objects.filter(user=user).first()
+            if not own or own.pk != student.pk:
+                raise PermissionDenied()
+
+        if student.profile_picture:
+            try:
+                student.profile_picture.delete(save=True)
+            except Exception:
+                student.profile_picture = None
+                student.save(update_fields=['profile_picture'])
+        return Response({"success": True, "profile_picture": None})
+
 class ChangePasswordView(generics.GenericAPIView):
     permission_classes = [permissions.IsAuthenticated]
     def post(self, request):
@@ -325,6 +396,11 @@ class EventViewSet(viewsets.ModelViewSet):
     queryset = Event.objects.all()
     serializer_class = EventSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action in ('create', 'update', 'partial_update', 'destroy'):
+            return [permissions.IsAuthenticated(), _AdminOnlyPermission()]
+        return super().get_permissions()
 
     @action(detail=False, methods=['get'])
     def current(self, request):
@@ -544,7 +620,12 @@ class StudentRegistrationViewSet(viewsets.ModelViewSet):
             if status_filter:
                 queryset = queryset.filter(status=status_filter)
             return queryset.order_by('-created_at')
-        return super().get_queryset()
+        if user.is_authenticated and user.role == 'student':
+            student = Student.objects.filter(user=user).first()
+            if student:
+                return StudentRegistration.objects.filter(student=student).order_by('-created_at')
+            return StudentRegistration.objects.none()
+        return StudentRegistration.objects.none()
 
     def perform_create(self, serializer):
         event = Event.get_current()
@@ -666,12 +747,20 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, MaintenancePermission]
 
     def get_queryset(self):
+        user = self.request.user
+        if user.role == 'student':
+            student = Student.objects.filter(user=user).first()
+            if student:
+                return Attendance.objects.filter(student=student)
+            return Attendance.objects.none()
         student_id = self.request.query_params.get('student_id')
         if student_id:
             return Attendance.objects.filter(student_id=student_id)
         return Attendance.objects.all()
 
     def perform_create(self, serializer):
+        if self.request.user.role not in ('admin', 'supervisor', 'volunteer'):
+            raise PermissionDenied()
         serializer.save(scanned_at=timezone.now())
 
 class WorkshopFeedbackViewSet(viewsets.ModelViewSet):
@@ -682,16 +771,23 @@ class WorkshopFeedbackViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.role == 'student':
-            try:
-                student = Student.objects.get(user=user)
+            student = Student.objects.filter(user=user).first()
+            if student:
                 return WorkshopFeedback.objects.filter(student=student)
-            except Student.DoesNotExist:
-                return WorkshopFeedback.objects.none()
+            return WorkshopFeedback.objects.none()
         
         student_id = self.request.query_params.get('student_id')
         if student_id:
             return WorkshopFeedback.objects.filter(student_id=student_id)
-        return WorkshopFeedback.objects.all()
+        return WorkshopFeedback.objects.none()
+
+    def perform_create(self, serializer):
+        if self.request.user.role != 'student':
+            raise PermissionDenied()
+        student = Student.objects.filter(user=self.request.user).first()
+        if not student:
+            raise PermissionDenied()
+        serializer.save(student=student)
 
 class StudentWorkshopNoteViewSet(viewsets.ModelViewSet):
     queryset = StudentWorkshopNote.objects.all()
@@ -701,16 +797,23 @@ class StudentWorkshopNoteViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.role == 'student':
-            try:
-                student = Student.objects.get(user=user)
+            student = Student.objects.filter(user=user).first()
+            if student:
                 return StudentWorkshopNote.objects.filter(student=student)
-            except Student.DoesNotExist:
-                return StudentWorkshopNote.objects.none()
+            return StudentWorkshopNote.objects.none()
 
         student_id = self.request.query_params.get('student_id')
         if student_id:
             return StudentWorkshopNote.objects.filter(student_id=student_id)
-        return StudentWorkshopNote.objects.all()
+        return StudentWorkshopNote.objects.none()
+
+    def perform_create(self, serializer):
+        if self.request.user.role != 'student':
+            raise PermissionDenied()
+        student = Student.objects.filter(user=self.request.user).first()
+        if not student:
+            raise PermissionDenied()
+        serializer.save(student=student)
 
 class WorkshopResourceViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = WorkshopResource.objects.all()
@@ -787,10 +890,18 @@ class FailedEmailViewSet(viewsets.ModelViewSet):
             raise PermissionDenied()
         email_obj = self.get_object()
         from techday.utils import send_email_async
-        send_email_async(email_obj.subject, email_obj.recipient, email_obj.html_content)
-        email_obj.attempts += 1
-        email_obj.last_attempt = timezone.now()
-        email_obj.save()
+        from django.core.mail import EmailMultiAlternatives
+        msg = EmailMultiAlternatives(
+            subject=email_obj.subject,
+            body=email_obj.body_text or email_obj.body_html,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=email_obj.recipient.split(','),
+        )
+        if email_obj.body_html:
+            msg.attach_alternative(email_obj.body_html, 'text/html')
+        send_email_async(msg, 'إعادة إرسال بريد فاشل')
+        email_obj.retry_count += 1
+        email_obj.save(update_fields=['retry_count'])
         return Response({'status': 'retrying'})
 
 class VIPInviteViewSet(viewsets.ModelViewSet):
@@ -804,8 +915,7 @@ class VIPInviteViewSet(viewsets.ModelViewSet):
         return VIPInvite.objects.all().order_by('-created_at')
 
     def perform_create(self, serializer):
-        event = Event.get_current()
-        serializer.save(event=event, created_by=self.request.user)
+        serializer.save()
 
 class StudentViolationViewSet(viewsets.ModelViewSet):
     queryset = StudentViolation.objects.all().order_by('-created_at')

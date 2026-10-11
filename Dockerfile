@@ -25,7 +25,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 ENV DJANGO_SETTINGS_MODULE=techday.settings
+ENV SECRET_KEY=build-time-dummy-key-only-for-collectstatic
 
 RUN python manage.py collectstatic --noinput
 
-CMD ["gunicorn", "techday.wsgi:application", "--bind", "0.0.0.0:8000", "--timeout", "180"]
+CMD gunicorn techday.wsgi:application --bind 0.0.0.0:${PORT:-8000} --timeout 180

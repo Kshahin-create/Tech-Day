@@ -19,11 +19,9 @@ class SendGridEmailBackend(BaseEmailBackend):
         timeout = int(os.environ.get('SENDGRID_TIMEOUT', '20') or 20)
         sent = 0
         
-        # إنشاء سياق SSL
+        # إنشاء سياق SSL آمن
         try:
-            if os.environ.get('SMTP_INSECURE_SSL', '').strip() == '1':
-                context = ssl._create_unverified_context()
-            elif certifi:
+            if certifi:
                 context = ssl.create_default_context(cafile=certifi.where())
             else:
                 context = ssl.create_default_context()

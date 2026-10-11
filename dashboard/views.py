@@ -14,6 +14,8 @@ import ssl
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth import logout, authenticate, login as auth_login, update_session_auth_hash
+from django.contrib.auth.views import redirect_to_login
 from django.core.mail import EmailMultiAlternatives
 from django.core.management import call_command
 from django.core.paginator import Paginator
@@ -22,7 +24,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 from django.db import transaction
-from django.db.models import Count, Max, Q, Avg, F, OuterRef, Subquery
+from django.db.models import Count, Max, Q, Avg, F, OuterRef, Subquery, Exists
 from django.db.models.functions import Trim
 from django.http import HttpResponseForbidden, HttpResponse, Http404, FileResponse
 from django.http import JsonResponse
@@ -353,6 +355,22 @@ def admin_dashboard(request):
     
     pending_emails_count = FailedEmail.objects.count()
     today_notes_count = VolunteerNote.objects.filter(created_at__date=today).count()
+
+    # Additional stats for the dashboard
+    pending_registrations_count = StudentRegistration.objects.filter(
+        event=event,
+        status=StudentRegistration.Status.PENDING,
+        removed_at__isnull=True,
+    ).count()
+    supervisors_count = User.objects.filter(role=User.Roles.SUPERVISOR, is_active=True).count()
+    volunteers_count = User.objects.filter(role=User.Roles.VOLUNTEER, is_active=True).count()
+    today_violations_count = StudentViolation.objects.filter(created_at__date=today).count()
+    active_notifications_count = Notification.objects.filter(event=event, is_active=True).count()
+    vip_invites_count = VIPInvite.objects.count()
+    support_requests_count = StudentSupportRequest.objects.exclude(
+        status__in=[StudentSupportRequest.Status.SOLVED, StudentSupportRequest.Status.CLOSED]
+    ).count()
+    attendance_rate = round((total_present / total_students * 100), 1) if total_students else 0
     
     event_status = 'لم تبدأ بعد'
     if event.is_finished:
@@ -379,6 +397,14 @@ def admin_dashboard(request):
         'event': event,
         'pending_emails_count': pending_emails_count,
         'today_notes_count': today_notes_count,
+        'pending_registrations_count': pending_registrations_count,
+        'supervisors_count': supervisors_count,
+        'volunteers_count': volunteers_count,
+        'today_violations_count': today_violations_count,
+        'active_notifications_count': active_notifications_count,
+        'vip_invites_count': vip_invites_count,
+        'support_requests_count': support_requests_count,
+        'attendance_rate': attendance_rate,
     }
     return render(request, 'dashboard/admin_dashboard.html', context)
 
@@ -807,6 +833,46 @@ def admin_toggle_maintenance(request):
     })
 
 
+@login_required
+def admin_toggle_education_admin_lock(request):
+    if not require_admin(request.user):
+        return JsonResponse({'success': False}, status=403)
+
+    event = Event.get_current()
+    event.is_education_admin_locked = not event.is_education_admin_locked
+    event.save(update_fields=['is_education_admin_locked'])
+
+    status = 'مقفل' if event.is_education_admin_locked else 'مفتوح'
+    AdminLog.objects.create(action=f'تم تغيير حالة قفل الإدارة التعليمية إلى: {status}')
+
+    return JsonResponse({
+        'success': True,
+        'is_locked': event.is_education_admin_locked,
+        'message': f'تم {status} التسجيل حسب الإدارة التعليمية بنجاح.'
+    })
+
+
+@login_required
+def admin_toggle_event_finished(request):
+    if not require_admin(request.user):
+        return JsonResponse({'success': False}, status=403)
+
+    event = Event.get_current()
+    event.is_finished = not event.is_finished
+    if event.is_finished:
+        Workshop.objects.filter(event=event).exclude(status='finished').update(status='finished')
+    event.save(update_fields=['is_finished'])
+
+    status = 'منتهية' if event.is_finished else 'جارية'
+    AdminLog.objects.create(action=f'تم تغيير حالة الفعالية إلى: {status}')
+
+    return JsonResponse({
+        'success': True,
+        'is_finished': event.is_finished,
+        'message': f'تم تعيين حالة الفعالية إلى: {status}.'
+    })
+
+
 def maintenance_page(request):
     event = Event.get_current()
     if not event.is_maintenance_mode:
@@ -823,22 +889,53 @@ def admin_students_list(request):
     
     event = Event.get_current()
     students_qs = Student.objects.select_related('group').all()
-    q = request.GET.get('q') or ''
-    group_id = request.GET.get('group') or ''
+
+    q = (request.GET.get('q') or '').strip()
+    group_id = (request.GET.get('group') or '').strip()
+
     if q:
-        students_qs = students_qs.filter(Q(name__icontains=q) | Q(student_id__icontains=q))
+        students_qs = students_qs.filter(
+            Q(name__icontains=q)
+            | Q(student_id__icontains=q)
+            | Q(school__icontains=q)
+            | Q(email__icontains=q)
+            | Q(phone_number__icontains=q)
+            | Q(education_admin__icontains=q)
+            | Q(grade__icontains=q)
+            | Q(group__name__icontains=q)
+            | Q(group__code__icontains=q)
+        ).distinct()
+
     if group_id:
         students_qs = students_qs.filter(group_id=group_id)
-    students = list(students_qs)
-    for student in students:
-        student.current_status = 'present' if student.checked_in else None
-    
-    # Show only groups for the current event in the filter dropdown
+
+    # Efficient annotation: is the student registered for the current event?
+    if event:
+        reg_subq = StudentRegistration.objects.filter(
+            student=OuterRef('pk'),
+            event=event,
+            status=StudentRegistration.Status.APPROVED,
+            removed_at__isnull=True,
+        )
+        students_qs = students_qs.annotate(
+            is_registered_for_current_event=Exists(reg_subq),
+        )
+
+    students_qs = students_qs.order_by('name')
+
+    paginator = Paginator(students_qs, 20)
+    page_number = request.GET.get('page') or 1
+    page_obj = paginator.get_page(page_number)
+
     groups = Group.objects.filter(event=event) if event else Group.objects.all()
+
     return render(request, 'dashboard/admin_students_list.html', {
-        'students': students, 
+        'students': page_obj,
+        'page_obj': page_obj,
         'groups': groups,
-        'current_event': event
+        'current_event': event,
+        'q': q,
+        'group_id': group_id,
     })
 
 
@@ -881,37 +978,53 @@ def admin_current_event_students(request):
         messages.warning(request, 'لا توجد فعالية نشطة حالياً.')
         return redirect('dashboard:admin_dashboard')
 
-    # Get students who have an APPROVED registration for the current event
     students_qs = Student.objects.filter(
         registrations__event=event,
         registrations__status=StudentRegistration.Status.APPROVED,
         registrations__removed_at__isnull=True,
     ).select_related('group').distinct()
 
-    q = request.GET.get('q') or ''
-    group_id = request.GET.get('group') or ''
+    q = (request.GET.get('q') or '').strip()
+    group_id = (request.GET.get('group') or '').strip()
+
     if q:
-        students_qs = students_qs.filter(Q(name__icontains=q) | Q(student_id__icontains=q))
+        students_qs = students_qs.filter(
+            Q(name__icontains=q)
+            | Q(student_id__icontains=q)
+            | Q(school__icontains=q)
+            | Q(email__icontains=q)
+            | Q(phone_number__icontains=q)
+            | Q(education_admin__icontains=q)
+            | Q(grade__icontains=q)
+            | Q(group__name__icontains=q)
+            | Q(group__code__icontains=q)
+        ).distinct()
+
     if group_id:
         students_qs = students_qs.filter(group_id=group_id)
-    
-    # We want to know if they checked in for THIS event
-    from students.models import StudentEventStats
-    stats_map = {
-        s.student_id: s.checked_in 
-        for s in StudentEventStats.objects.filter(event=event)
-    }
 
-    students = list(students_qs)
-    for student in students:
-        # Use StudentEventStats if exists, fallback to student.checked_in (legacy)
-        student.is_checked_in_this_event = stats_map.get(student.id, student.checked_in)
-        
+    # Efficient annotation: checked-in for THIS event
+    stats_subq = StudentEventStats.objects.filter(
+        student=OuterRef('pk'),
+        event=event,
+        checked_in=True,
+    )
+    students_qs = students_qs.annotate(
+        is_checked_in_this_event=Exists(stats_subq),
+    ).order_by('name')
+
+    paginator = Paginator(students_qs, 20)
+    page_number = request.GET.get('page') or 1
+    page_obj = paginator.get_page(page_number)
+
     groups = Group.objects.filter(event=event)
     return render(request, 'dashboard/admin_current_event_students.html', {
-        'students': students, 
+        'students': page_obj,
+        'page_obj': page_obj,
         'groups': groups,
-        'event': event
+        'event': event,
+        'q': q,
+        'group_id': group_id,
     })
 
 
@@ -5037,6 +5150,13 @@ def media_proxy(request, file_path):
     parts = normalized.replace('\\', '/').split('/')
     if any(p in {'..', ''} for p in parts):
         raise Http404()
+
+    public_prefixes = ('app_releases/',)
+    is_public = normalized.startswith(public_prefixes)
+    if not is_public:
+        if not request.user.is_authenticated:
+            return redirect_to_login(request.get_full_path())
+
     if not default_storage.exists(normalized):
         raise Http404()
     stream = default_storage.open(normalized, mode='rb')
@@ -5060,16 +5180,12 @@ def admin_smtp_diagnose(request):
 
     started = time_module.monotonic()
     try:
-        # Create a more robust SSL context
+        # Create a robust SSL context
         try:
             import certifi
             context = ssl.create_default_context(cafile=certifi.where())
         except (ImportError, Exception):
             context = ssl.create_default_context()
-        
-        # Check for bypass
-        if os.environ.get('SMTP_INSECURE_SSL', '').strip() == '1':
-            context = ssl._create_unverified_context()
 
         if use_ssl:
             server = smtplib.SMTP_SSL(host=host, port=port, timeout=timeout, context=context)

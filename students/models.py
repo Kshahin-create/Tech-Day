@@ -1,7 +1,14 @@
 from django.conf import settings
 from django.db import models
+from django.utils.text import slugify
 
 from groups.models import Group
+
+
+def student_profile_picture_upload_path(instance, filename):
+    ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else 'jpg'
+    safe_name = slugify(instance.name)[:50] or 'student'
+    return f'student_profiles/{instance.student_id}_{safe_name}.{ext}'
 
 
 class Student(models.Model):
@@ -15,6 +22,12 @@ class Student(models.Model):
     )
     name = models.CharField(max_length=150, verbose_name='اسم الطالب')
     student_id = models.CharField(max_length=20, unique=True, verbose_name='رقم الطالب')
+    profile_picture = models.ImageField(
+        upload_to=student_profile_picture_upload_path,
+        null=True,
+        blank=True,
+        verbose_name='الصورة الشخصية',
+    )
     group = models.ForeignKey(
         Group,
         on_delete=models.SET_NULL,

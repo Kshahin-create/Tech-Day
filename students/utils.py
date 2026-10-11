@@ -1,7 +1,31 @@
+from io import BytesIO
+
+from PIL import Image
+from django.core.files.base import ContentFile
+
 from students.models import Badge, StudentBadge, StudentEventStats
 from attendance.models import Attendance
 from workshops.models import WorkshopSession
 from dashboard.models import Event
+
+
+def process_profile_picture(uploaded_file, max_size=512, quality=85):
+    img = Image.open(uploaded_file)
+    if img.mode in ('RGBA', 'LA', 'P'):
+        background = Image.new('RGB', img.size, (255, 255, 255))
+        if img.mode == 'P':
+            img = img.convert('RGBA')
+        background.paste(img, mask=img.split()[-1] if img.mode in ('RGBA', 'LA') else None)
+        img = background
+    elif img.mode != 'RGB':
+        img = img.convert('RGB')
+
+    img.thumbnail((max_size, max_size), Image.LANCZOS)
+
+    output = BytesIO()
+    img.save(output, format='JPEG', quality=quality, optimize=True, progressive=True)
+    output.seek(0)
+    return ContentFile(output.read(), name='profile.jpg')
 
 def check_and_award_badges(student, event=None):
     """

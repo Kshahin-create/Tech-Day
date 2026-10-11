@@ -238,6 +238,43 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     };
 
+    window.toggleEducationAdminLock = function() {
+        if (!confirm('هل أنت متأكد من تغيير حالة قفل الإدارة التعليمية للتسجيل؟')) return;
+        fetch("{% url 'dashboard:admin_toggle_education_admin_lock' %}")
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    const btn = document.getElementById('edu-lock-toggle-btn');
+                    const icon = btn.querySelector('div');
+                    const text = document.getElementById('edu-lock-toggle-text');
+                    if (data.is_locked) {
+                        btn.classList.replace('border-emerald-500/30', 'border-rose-500/30');
+                        icon.classList.replace('bg-emerald-500/10', 'bg-rose-500/10');
+                        icon.classList.replace('text-emerald-400', 'text-rose-400');
+                        text.innerText = 'فتح القيد';
+                    } else {
+                        btn.classList.replace('border-rose-500/30', 'border-emerald-500/30');
+                        icon.classList.replace('bg-rose-500/10', 'bg-emerald-500/10');
+                        icon.classList.replace('text-rose-400', 'text-emerald-400');
+                        text.innerText = 'قفل التسجيل';
+                    }
+                }
+            });
+    };
+
+    window.toggleEventFinished = function() {
+        if (!confirm('هل أنت متأكد من تغيير حالة إنهاء الفعالية؟')) return;
+        fetch("{% url 'dashboard:admin_toggle_event_finished' %}")
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    location.reload();
+                }
+            });
+    };
+
     // Poll every 10 seconds
     setInterval(pollSOS, 10000);
     pollSOS();
@@ -415,11 +452,294 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
             </div>
         </div>
-    </div>
 
-    <div class="grid gap-8 lg:grid-cols-3">
-        <!-- Main Content (2/3) -->
-        <div class="lg:col-span-2 space-y-8">
+        <!-- Pending Registrations -->
+        <a href="{% url 'dashboard:admin_current_event_registrations' %}" class="group relative overflow-hidden bg-slate-900/40 backdrop-blur-xl border border-slate-800/50 p-5 sm:p-6 rounded-[1.5rem] sm:rounded-[2rem] hover:border-amber-500/30 transition-all duration-500">
+            <div class="absolute -right-4 -top-4 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl group-hover:bg-amber-500/10 transition-all"></div>
+            <div class="relative flex flex-col gap-3 sm:gap-4">
+                <div class="flex items-center justify-between">
+                    <div class="p-2.5 sm:p-3 bg-amber-500/10 rounded-xl sm:rounded-2xl border border-amber-500/20 group-hover:scale-110 transition-transform">
+                        <i data-lucide="user-clock" class="w-5 h-5 sm:w-6 sm:h-6 text-amber-400"></i>
+                    </div>
+                    {% if pending_registrations_count > 0 %}
+                    <span class="flex items-center gap-1 text-[8px] sm:text-[9px] font-black text-amber-400 bg-amber-400/10 px-2 py-1 rounded-full border border-amber-400/20 animate-pulse">
+                        في الانتظار
+                    </span>
+                    {% endif %}
+                </div>
+                <div>
+                    <div class="text-3xl sm:text-4xl font-black text-white group-hover:translate-x-1 transition-transform tracking-tighter">{{ pending_registrations_count }}</div>
+                    <div class="text-[9px] sm:text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">طلبات تسجيل معلقة</div>
+                </div>
+            </div>
+        </a>
+
+        <!-- Supervisors Count -->
+        <a href="{% url 'dashboard:admin_supervisors' %}" class="group relative overflow-hidden bg-slate-900/40 backdrop-blur-xl border border-slate-800/50 p-5 sm:p-6 rounded-[1.5rem] sm:rounded-[2rem] hover:border-cyan-500/30 transition-all duration-500">
+            <div class="absolute -right-4 -top-4 w-24 h-24 bg-cyan-500/5 rounded-full blur-2xl group-hover:bg-cyan-500/10 transition-all"></div>
+            <div class="relative flex flex-col gap-3 sm:gap-4">
+                <div class="flex items-center justify-between">
+                    <div class="p-2.5 sm:p-3 bg-cyan-500/10 rounded-xl sm:rounded-2xl border border-cyan-500/20 group-hover:scale-110 transition-transform">
+                        <i data-lucide="shield-user" class="w-5 h-5 sm:w-6 sm:h-6 text-cyan-400"></i>
+                    </div>
+                </div>
+                <div>
+                    <div class="text-3xl sm:text-4xl font-black text-white group-hover:translate-x-1 transition-transform tracking-tighter">{{ supervisors_count }}</div>
+                    <div class="text-[9px] sm:text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">عدد المشرفين</div>
+                </div>
+            </div>
+        </a>
+
+        <!-- Volunteers Count -->
+        <a href="{% url 'dashboard:admin_volunteers' %}" class="group relative overflow-hidden bg-slate-900/40 backdrop-blur-xl border border-slate-800/50 p-5 sm:p-6 rounded-[1.5rem] sm:rounded-[2rem] hover:border-teal-500/30 transition-all duration-500">
+            <div class="absolute -right-4 -top-4 w-24 h-24 bg-teal-500/5 rounded-full blur-2xl group-hover:bg-teal-500/10 transition-all"></div>
+            <div class="relative flex flex-col gap-3 sm:gap-4">
+                <div class="flex items-center justify-between">
+                    <div class="p-2.5 sm:p-3 bg-teal-500/10 rounded-xl sm:rounded-2xl border border-teal-500/20 group-hover:scale-110 transition-transform">
+                        <i data-lucide="heart-handshake" class="w-5 h-5 sm:w-6 sm:h-6 text-teal-400"></i>
+                    </div>
+                </div>
+                <div>
+                    <div class="text-3xl sm:text-4xl font-black text-white group-hover:translate-x-1 transition-transform tracking-tighter">{{ volunteers_count }}</div>
+                    <div class="text-[9px] sm:text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">عدد المتطوعين</div>
+                </div>
+            </div>
+        </a>
+
+        <!-- Today's Violations -->
+        <a href="{% url 'dashboard:admin_student_violations' %}" class="group relative overflow-hidden bg-slate-900/40 backdrop-blur-xl border border-slate-800/50 p-5 sm:p-6 rounded-[1.5rem] sm:rounded-[2rem] hover:border-red-500/30 transition-all duration-500">
+            <div class="absolute -right-4 -top-4 w-24 h-24 bg-red-500/5 rounded-full blur-2xl group-hover:bg-red-500/10 transition-all"></div>
+            <div class="relative flex flex-col gap-3 sm:gap-4">
+                <div class="flex items-center justify-between">
+                    <div class="p-2.5 sm:p-3 bg-red-500/10 rounded-xl sm:rounded-2xl border border-red-500/20 group-hover:scale-110 transition-transform">
+                        <i data-lucide="alert-octagon" class="w-5 h-5 sm:w-6 sm:h-6 text-red-400"></i>
+                    </div>
+                </div>
+                <div>
+                    <div class="text-3xl sm:text-4xl font-black text-white group-hover:translate-x-1 transition-transform tracking-tighter">{{ today_violations_count }}</div>
+                    <div class="text-[9px] sm:text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">مخالفات اليوم</div>
+                </div>
+            </div>
+        </a>
+
+        <!-- VIP Invites -->
+        <a href="{% url 'dashboard:admin_vip_invites' %}" class="group relative overflow-hidden bg-slate-900/40 backdrop-blur-xl border border-slate-800/50 p-5 sm:p-6 rounded-[1.5rem] sm:rounded-[2rem] hover:border-yellow-500/30 transition-all duration-500">
+            <div class="absolute -right-4 -top-4 w-24 h-24 bg-yellow-500/5 rounded-full blur-2xl group-hover:bg-yellow-500/10 transition-all"></div>
+            <div class="relative flex flex-col gap-3 sm:gap-4">
+                <div class="flex items-center justify-between">
+                    <div class="p-2.5 sm:p-3 bg-yellow-500/10 rounded-xl sm:rounded-2xl border border-yellow-500/20 group-hover:scale-110 transition-transform">
+                        <i data-lucide="crown" class="w-5 h-5 sm:w-6 sm:h-6 text-yellow-400"></i>
+                    </div>
+                </div>
+                <div>
+                    <div class="text-3xl sm:text-4xl font-black text-white group-hover:translate-x-1 transition-transform tracking-tighter">{{ vip_invites_count }}</div>
+                    <div class="text-[9px] sm:text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">دعوات VIP</div>
+                </div>
+            </div>
+        </a>
+
+        <!-- Support Requests -->
+        <a href="{% url 'dashboard:admin_support_requests' %}" class="group relative overflow-hidden bg-slate-900/40 backdrop-blur-xl border border-slate-800/50 p-5 sm:p-6 rounded-[1.5rem] sm:rounded-[2rem] hover:border-rose-500/30 transition-all duration-500">
+            <div class="absolute -right-4 -top-4 w-24 h-24 bg-rose-500/5 rounded-full blur-2xl group-hover:bg-rose-500/10 transition-all"></div>
+            <div class="relative flex flex-col gap-3 sm:gap-4">
+                <div class="flex items-center justify-between">
+                    <div class="p-2.5 sm:p-3 bg-rose-500/10 rounded-xl sm:rounded-2xl border border-rose-500/20 group-hover:scale-110 transition-transform">
+                        <i data-lucide="life-buoy" class="w-5 h-5 sm:w-6 sm:h-6 text-rose-400"></i>
+                    </div>
+                    {% if support_requests_count > 0 %}
+                    <span class="flex items-center gap-1 text-[8px] sm:text-[9px] font-black text-rose-400 bg-rose-400/10 px-2 py-1 rounded-full border border-rose-400/20 animate-pulse">
+                        مفتوحة
+                    </span>
+                    {% endif %}
+                </div>
+                <div>
+                    <div class="text-3xl sm:text-4xl font-black text-white group-hover:translate-x-1 transition-transform tracking-tighter">{{ support_requests_count }}</div>
+                    <div class="text-[9px] sm:text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">طلبات دعم مفتوحة</div>
+                </div>
+            </div>
+        </a>
+    </div>
+            <!-- Event Info & Quick Actions Grid -->
+            <div class="bg-slate-900/40 backdrop-blur-xl border border-slate-800/50 rounded-[2.5rem] p-6 sm:p-8 hover:border-cyan-500/30 transition-colors group/info shadow-2xl">
+                <div class="flex items-center gap-3 mb-6 sm:mb-8">
+                    <div class="w-1.5 h-6 bg-cyan-500 rounded-full shadow-[0_0_15px_rgba(6,182,212,0.5)]"></div>
+                    <h2 class="text-xl font-black text-white tracking-tight">معلومات الفعالية</h2>
+                </div>
+                
+                <div class="space-y-4 sm:space-y-6">
+                    <div class="flex items-center justify-between p-4 sm:p-5 bg-slate-950/50 rounded-2xl border border-slate-800/50">
+                        <span class="text-[9px] sm:text-[10px] font-black text-slate-500 uppercase tracking-widest">حالة الفعالية</span>
+                        <span class="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[8px] sm:text-[10px] font-black uppercase tracking-widest
+                                    {% if event_status == 'جارية' %}bg-emerald-500/10 text-emerald-400 border border-emerald-500/20
+                                    {% elif event_status == 'متوقفة' %}bg-amber-500/10 text-amber-400 border border-amber-500/20
+                                    {% else %}bg-slate-800/50 text-slate-400 border border-slate-700/50{% endif %}">
+                            <span class="w-1.5 h-1.5 rounded-full {% if event_status == 'جارية' %}bg-emerald-400 animate-pulse{% elif event_status == 'متوقفة' %}bg-amber-400{% else %}bg-slate-400{% endif %}"></span>
+                            {{ event_status }}
+                        </span>
+                    </div>
+                    
+                    <div class="flex items-center justify-between px-2 py-2 sm:py-4">
+                        <div class="flex flex-col">
+                            <span class="text-[9px] sm:text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 sm:mb-2">الوقت والتاريخ</span>
+                            <div class="text-3xl sm:text-4xl font-black text-white tracking-tighter">{{ now|date:"H:i" }}</div>
+                            <div class="text-[10px] sm:text-[11px] text-slate-400 font-bold mt-1">{{ now|date:"l, d F Y" }}</div>
+                        </div>
+                        <div class="p-4 sm:p-5 bg-slate-950/50 rounded-2xl border border-slate-800 group-hover/info:scale-110 transition-transform">
+                            <i data-lucide="calendar" class="w-8 h-8 sm:w-10 sm:h-10 text-cyan-500/30"></i>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3 sm:space-y-4">
+                        <div class="flex items-center justify-between px-2">
+                            <span class="text-[9px] sm:text-[10px] font-black text-slate-500 uppercase tracking-widest">نسبة الحضور</span>
+                            <span class="text-lg sm:text-xl font-black text-emerald-400">{{ attendance_rate }}%</span>
+                        </div>
+                        <div class="w-full bg-slate-950 h-2 sm:h-2.5 rounded-full overflow-hidden border border-slate-800/50">
+                            <div class="h-full rounded-full bg-gradient-to-r from-emerald-600 to-emerald-400 transition-all duration-1000 shadow-[0_0_8px_rgba(16,185,129,0.4)]" style="width: {{ attendance_rate }}%"></div>
+                        </div>
+                        {% if event.max_students %}
+                        <div class="flex items-center justify-between px-2 pt-1">
+                            <span class="text-[9px] sm:text-[10px] font-black text-slate-500 uppercase tracking-widest">الحد الأقصى للطلاب</span>
+                            <span class="text-sm sm:text-base font-black text-cyan-400">{{ total_students }} / {{ event.max_students }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="mt-8 sm:mt-10 pt-8 sm:pt-10 border-t border-slate-800/50">
+                    <div class="flex items-center gap-3 mb-6 sm:mb-8">
+                        <div class="w-1.5 h-6 bg-amber-500 rounded-full shadow-[0_0_15px_rgba(245,158,11,0.5)]"></div>
+                        <h2 class="text-xl font-black text-white tracking-tight">إجراءات سريعة</h2>
+                    </div>
+
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+                        <a href="{% url 'attendance:scan_qr' %}" class="flex flex-col items-center justify-center p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2.5rem] bg-slate-950/40 border border-slate-800/50 hover:border-cyan-500/50 hover:bg-slate-900 transition-all group/btn">
+                            <div class="p-3 sm:p-4 bg-cyan-500/10 rounded-2xl mb-3 sm:mb-4 group-hover/btn:scale-110 transition-transform">
+                                <i data-lucide="qr-code" class="w-6 h-6 sm:w-7 sm:h-7 text-cyan-400"></i>
+                            </div>
+                            <span class="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.1em] sm:tracking-[0.2em] text-slate-400 group-hover/btn:text-cyan-400 transition-colors text-center">مسح الحضور</span>
+                        </a>
+                        <button onclick="toggleRegistration()" id="reg-toggle-btn" 
+                                class="flex flex-col items-center justify-center p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2.5rem] bg-slate-950/40 border border-slate-800/50 hover:bg-slate-900 transition-all group/btn {% if event.is_registration_closed %}border-rose-500/30{% else %}border-emerald-500/30{% endif %}">
+                            <div class="p-3 sm:p-4 rounded-2xl mb-3 sm:mb-4 group-hover/btn:scale-110 transition-transform {% if event.is_registration_closed %}bg-rose-500/10 text-rose-400{% else %}bg-emerald-500/10 text-emerald-400{% endif %}">
+                                <i data-lucide="user-plus" class="w-6 h-6 sm:w-7 sm:h-7"></i>
+                            </div>
+                            <span id="reg-toggle-text" class="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.1em] sm:tracking-[0.2em] group-hover/btn:text-white transition-colors text-center leading-tight">
+                                {% if event.is_registration_closed %}فتح التسجيل{% else %}إغلاق التسجيل{% endif %}
+                            </span>
+                        </button>
+                        <button onclick="toggleGroupPoints()" id="points-toggle-btn" 
+                                class="flex flex-col items-center justify-center p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2.5rem] bg-slate-950/40 border border-slate-800/50 hover:bg-slate-900 transition-all group/btn {% if not event.allow_group_points %}border-rose-500/30{% else %}border-emerald-500/30{% endif %}">
+                            <div class="p-3 sm:p-4 rounded-2xl mb-3 sm:mb-4 group-hover/btn:scale-110 transition-transform {% if not event.allow_group_points %}bg-rose-500/10 text-rose-400{% else %}bg-emerald-500/10 text-emerald-400{% endif %}">
+                                <i data-lucide="layers" class="w-6 h-6 sm:w-7 sm:h-7"></i>
+                            </div>
+                            <span id="points-toggle-text" class="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.1em] sm:tracking-[0.2em] group-hover/btn:text-white transition-colors text-center leading-tight">
+                                {% if event.allow_group_points %}إغلاق النقاط{% else %}فتح النقاط{% endif %}
+                            </span>
+                        </button>
+                        <button onclick="toggleExistingStudentsRegistration()" id="existing-toggle-btn"
+                                class="flex flex-col items-center justify-center p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2.5rem] bg-slate-950/40 border border-slate-800/50 hover:bg-slate-900 transition-all group/btn {% if not event.allow_existing_students_registration %}border-rose-500/30{% else %}border-emerald-500/30{% endif %}">
+                            <div class="p-3 sm:p-4 rounded-2xl mb-3 sm:mb-4 group-hover/btn:scale-110 transition-transform {% if not event.allow_existing_students_registration %}bg-rose-500/10 text-rose-400{% else %}bg-emerald-500/10 text-emerald-400{% endif %}">
+                                <i data-lucide="user-x" class="w-6 h-6 sm:w-7 sm:h-7"></i>
+                            </div>
+                            <span id="existing-toggle-text" class="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.1em] sm:tracking-[0.2em] group-hover/btn:text-white transition-colors text-center leading-tight">
+                                {% if event.allow_existing_students_registration %}قفل تسجيل القدامى{% else %}فتح تسجيل القدامى{% endif %}
+                            </span>
+                        </button>
+                        <form method="post" action="{% url 'dashboard:admin_backup_download' %}" class="contents">
+                            {% csrf_token %}
+                            <button type="submit" class="w-full flex flex-col items-center justify-center p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2.5rem] bg-slate-950/40 border border-slate-800/50 hover:border-emerald-500/50 hover:bg-slate-900 transition-all group/btn">
+                                <div class="p-3 sm:p-4 bg-emerald-500/10 rounded-2xl mb-3 sm:mb-4 group-hover/btn:scale-110 transition-transform">
+                                    <i data-lucide="download-cloud" class="w-6 h-6 sm:w-7 sm:h-7 text-emerald-400"></i>
+                                </div>
+                                <span class="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.1em] sm:tracking-[0.2em] text-slate-400 group-hover/btn:text-emerald-400 transition-colors text-center">Backup</span>
+                            </button>
+                        </form>
+                        {% if event_status == 'متوقفة' %}
+                        <form method="post" action="{% url 'dashboard:admin_send_certificates' %}" class="contents">
+                            {% csrf_token %}
+                            <button type="submit" class="w-full flex flex-col items-center justify-center p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2.5rem] bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20 transition-all group/btn">
+                                <div class="p-3 sm:p-4 bg-rose-500/10 rounded-2xl mb-3 sm:mb-4 group-hover/btn:scale-110 transition-transform">
+                                    <i data-lucide="file-badge" class="w-6 h-6 sm:w-7 sm:h-7 text-rose-400"></i>
+                                </div>
+                                <span class="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.1em] sm:tracking-[0.2em] text-rose-400 text-center">Certs</span>
+                            </button>
+                        </form>
+                        {% endif %}
+                        <form method="post" action="{% url 'dashboard:admin_factory_reset' %}" class="contents" onsubmit="return confirm('حذف كل البيانات؟');">
+                            {% csrf_token %}
+                            <button type="submit" class="w-full flex flex-col items-center justify-center p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2.5rem] bg-red-500/5 border border-red-500/10 hover:border-red-500/50 hover:bg-red-500/10 transition-all group/btn">
+                                <div class="p-3 sm:p-4 bg-red-500/10 rounded-2xl mb-3 sm:mb-4 group-hover/btn:scale-110 transition-transform">
+                                    <i data-lucide="trash-2" class="w-6 h-6 sm:w-7 sm:h-7 text-red-400"></i>
+                                </div>
+                                <span class="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.1em] sm:tracking-[0.2em] text-red-500/50 group-hover/btn:text-red-500 transition-colors text-center">Reset</span>
+                            </button>
+                        </form>
+                        <button onclick="toggleMaintenance()" id="maintenance-toggle-btn" 
+                                class="flex flex-col items-center justify-center p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2.5rem] bg-slate-950/40 border border-slate-800/50 hover:bg-slate-900 transition-all group/btn {% if event.is_maintenance_mode %}border-rose-500/30{% endif %}">
+                            <div class="p-3 sm:p-4 rounded-2xl mb-3 sm:mb-4 group-hover/btn:scale-110 transition-transform {% if event.is_maintenance_mode %}bg-rose-500/10 text-rose-400{% else %}bg-slate-900 text-slate-500{% endif %}">
+                                <i data-lucide="wrench" class="w-6 h-6 sm:w-7 sm:h-7"></i>
+                            </div>
+                            <span id="maintenance-toggle-text" class="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.1em] sm:tracking-[0.2em] group-hover/btn:text-white transition-colors text-center leading-tight">
+                                {% if event.is_maintenance_mode %}إلغاء الصيانة{% else %}تفعيل الصيانة{% endif %}
+                            </span>
+                        </button>
+                        <a href="{% url 'dashboard:admin_archive_event' %}" class="w-full flex flex-col items-center justify-center p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2.5rem] bg-indigo-500/10 border border-indigo-500/20 hover:border-indigo-500/50 hover:bg-indigo-500/20 transition-all group/btn">
+                            <div class="p-3 sm:p-4 bg-indigo-500/10 rounded-2xl mb-3 sm:mb-4 group-hover/btn:scale-110 transition-transform">
+                                <i data-lucide="archive" class="w-6 h-6 sm:w-7 sm:h-7 text-indigo-400"></i>
+                            </div>
+                            <span class="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.1em] sm:tracking-[0.2em] text-indigo-400 text-center">Archive</span>
+                        </a>
+                        <button onclick="toggleEducationAdminLock()" id="edu-lock-toggle-btn"
+                                class="flex flex-col items-center justify-center p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2.5rem] bg-slate-950/40 border border-slate-800/50 hover:bg-slate-900 transition-all group/btn {% if event.is_education_admin_locked %}border-rose-500/30{% else %}border-emerald-500/30{% endif %}">
+                            <div class="p-3 sm:p-4 rounded-2xl mb-3 sm:mb-4 group-hover/btn:scale-110 transition-transform {% if event.is_education_admin_locked %}bg-rose-500/10 text-rose-400{% else %}bg-emerald-500/10 text-emerald-400{% endif %}">
+                                <i data-lucide="school" class="w-6 h-6 sm:w-7 sm:h-7"></i>
+                            </div>
+                            <span id="edu-lock-toggle-text" class="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.1em] sm:tracking-[0.2em] group-hover/btn:text-white transition-colors text-center leading-tight">
+                                {% if event.is_education_admin_locked %}فتح القيد{% else %}قفل التسجيل{% endif %}
+                            </span>
+                        </button>
+                        <button onclick="toggleEventFinished()"
+                                class="flex flex-col items-center justify-center p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2.5rem] bg-slate-950/40 border border-slate-800/50 hover:bg-slate-900 transition-all group/btn {% if event.is_finished %}border-amber-500/30{% else %}border-cyan-500/30{% endif %}">
+                            <div class="p-3 sm:p-4 rounded-2xl mb-3 sm:mb-4 group-hover/btn:scale-110 transition-transform {% if event.is_finished %}bg-amber-500/10 text-amber-400{% else %}bg-cyan-500/10 text-cyan-400{% endif %}">
+                                <i data-lucide="{% if event.is_finished %}play{% else %}square{% endif %}" class="w-6 h-6 sm:w-7 sm:h-7"></i>
+                            </div>
+                            <span class="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.1em] sm:tracking-[0.2em] group-hover/btn:text-white transition-colors text-center leading-tight">
+                                {% if event.is_finished %}استئناف{% else %}إنهاء الفعالية{% endif %}
+                            </span>
+                        </button>
+                        <form method="post" action="{% url 'dashboard:admin_send_whatsapp_link' %}" class="contents">
+                            {% csrf_token %}
+                            <button type="submit" class="w-full flex flex-col items-center justify-center p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2.5rem] bg-slate-950/40 border border-slate-800/50 hover:border-green-500/50 hover:bg-slate-900 transition-all group/btn">
+                                <div class="p-3 sm:p-4 bg-green-500/10 rounded-2xl mb-3 sm:mb-4 group-hover/btn:scale-110 transition-transform">
+                                    <i data-lucide="message-circle" class="w-6 h-6 sm:w-7 sm:h-7 text-green-400"></i>
+                                </div>
+                                <span class="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.1em] sm:tracking-[0.2em] text-slate-400 group-hover/btn:text-green-400 transition-colors text-center leading-tight">واتساب</span>
+                            </button>
+                        </form>
+                        <form method="post" action="{% url 'dashboard:admin_send_location_email' %}" class="contents">
+                            {% csrf_token %}
+                            <button type="submit" class="w-full flex flex-col items-center justify-center p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2.5rem] bg-slate-950/40 border border-slate-800/50 hover:border-sky-500/50 hover:bg-slate-900 transition-all group/btn">
+                                <div class="p-3 sm:p-4 bg-sky-500/10 rounded-2xl mb-3 sm:mb-4 group-hover/btn:scale-110 transition-transform">
+                                    <i data-lucide="map-pin" class="w-6 h-6 sm:w-7 sm:h-7 text-sky-400"></i>
+                                </div>
+                                <span class="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.1em] sm:tracking-[0.2em] text-slate-400 group-hover/btn:text-sky-400 transition-colors text-center leading-tight">الموقع</span>
+                            </button>
+                        </form>
+                        <form method="post" action="{% url 'dashboard:admin_send_event_instructions' %}" class="contents">
+                            {% csrf_token %}
+                            <button type="submit" class="w-full flex flex-col items-center justify-center p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2.5rem] bg-slate-950/40 border border-slate-800/50 hover:border-violet-500/50 hover:bg-slate-900 transition-all group/btn">
+                                <div class="p-3 sm:p-4 bg-violet-500/10 rounded-2xl mb-3 sm:mb-4 group-hover/btn:scale-110 transition-transform">
+                                    <i data-lucide="file-text" class="w-6 h-6 sm:w-7 sm:h-7 text-violet-400"></i>
+                                </div>
+                                <span class="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.1em] sm:tracking-[0.2em] text-slate-400 group-hover/btn:text-violet-400 transition-colors text-center leading-tight">التعليمات</span>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+    <div class="grid gap-8 lg:grid-cols-2">
             <!-- Global Broadcast Control -->
             <div class="bg-slate-900/40 backdrop-blur-xl border border-slate-800/50 rounded-[1.5rem] sm:rounded-[2.5rem] p-5 sm:p-10 hover:border-indigo-500/30 transition-all group/broadcast shadow-2xl overflow-hidden">
                 <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 mb-8">
@@ -513,6 +833,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 </div>
             </div>
+    </div>
 
             <!-- Workshops Table -->
             <div class="bg-slate-900/40 backdrop-blur-xl border border-slate-800/50 rounded-[1.5rem] sm:rounded-[2.5rem] overflow-hidden hover:border-violet-500/20 transition-all shadow-2xl">
@@ -576,128 +897,6 @@ document.addEventListener('DOMContentLoaded', function() {
                             {% endfor %}
                         </tbody>
                     </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- Sidebar Content (1/3) -->
-        <div class="space-y-8">
-            <!-- Event Info & Quick Actions Grid -->
-            <div class="bg-slate-900/40 backdrop-blur-xl border border-slate-800/50 rounded-[2.5rem] p-6 sm:p-8 hover:border-cyan-500/30 transition-colors group/info shadow-2xl">
-                <div class="flex items-center gap-3 mb-6 sm:mb-8">
-                    <div class="w-1.5 h-6 bg-cyan-500 rounded-full shadow-[0_0_15px_rgba(6,182,212,0.5)]"></div>
-                    <h2 class="text-xl font-black text-white tracking-tight">معلومات الفعالية</h2>
-                </div>
-                
-                <div class="space-y-4 sm:space-y-6">
-                    <div class="flex items-center justify-between p-4 sm:p-5 bg-slate-950/50 rounded-2xl border border-slate-800/50">
-                        <span class="text-[9px] sm:text-[10px] font-black text-slate-500 uppercase tracking-widest">حالة الفعالية</span>
-                        <span class="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[8px] sm:text-[10px] font-black uppercase tracking-widest
-                                    {% if event_status == 'جارية' %}bg-emerald-500/10 text-emerald-400 border border-emerald-500/20
-                                    {% elif event_status == 'متوقفة' %}bg-amber-500/10 text-amber-400 border border-amber-500/20
-                                    {% else %}bg-slate-800/50 text-slate-400 border border-slate-700/50{% endif %}">
-                            <span class="w-1.5 h-1.5 rounded-full {% if event_status == 'جارية' %}bg-emerald-400 animate-pulse{% elif event_status == 'متوقفة' %}bg-amber-400{% else %}bg-slate-400{% endif %}"></span>
-                            {{ event_status }}
-                        </span>
-                    </div>
-                    
-                    <div class="flex items-center justify-between px-2 py-2 sm:py-4">
-                        <div class="flex flex-col">
-                            <span class="text-[9px] sm:text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 sm:mb-2">الوقت والتاريخ</span>
-                            <div class="text-3xl sm:text-4xl font-black text-white tracking-tighter">{{ now|date:"H:i" }}</div>
-                            <div class="text-[10px] sm:text-[11px] text-slate-400 font-bold mt-1">{{ now|date:"l, d F Y" }}</div>
-                        </div>
-                        <div class="p-4 sm:p-5 bg-slate-950/50 rounded-2xl border border-slate-800 group-hover/info:scale-110 transition-transform">
-                            <i data-lucide="calendar" class="w-8 h-8 sm:w-10 sm:h-10 text-cyan-500/30"></i>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="mt-8 sm:mt-10 pt-8 sm:pt-10 border-t border-slate-800/50">
-                    <div class="flex items-center gap-3 mb-6 sm:mb-8">
-                        <div class="w-1.5 h-6 bg-amber-500 rounded-full shadow-[0_0_15px_rgba(245,158,11,0.5)]"></div>
-                        <h2 class="text-xl font-black text-white tracking-tight">إجراءات سريعة</h2>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-3 sm:gap-4">
-                        <a href="{% url 'attendance:scan_qr' %}" class="flex flex-col items-center justify-center p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2.5rem] bg-slate-950/40 border border-slate-800/50 hover:border-cyan-500/50 hover:bg-slate-900 transition-all group/btn">
-                            <div class="p-3 sm:p-4 bg-cyan-500/10 rounded-2xl mb-3 sm:mb-4 group-hover/btn:scale-110 transition-transform">
-                                <i data-lucide="qr-code" class="w-6 h-6 sm:w-7 sm:h-7 text-cyan-400"></i>
-                            </div>
-                            <span class="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.1em] sm:tracking-[0.2em] text-slate-400 group-hover/btn:text-cyan-400 transition-colors text-center">مسح الحضور</span>
-                        </a>
-                        <button onclick="toggleRegistration()" id="reg-toggle-btn" 
-                                class="flex flex-col items-center justify-center p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2.5rem] bg-slate-950/40 border border-slate-800/50 hover:bg-slate-900 transition-all group/btn {% if event.is_registration_closed %}border-rose-500/30{% else %}border-emerald-500/30{% endif %}">
-                            <div class="p-3 sm:p-4 rounded-2xl mb-3 sm:mb-4 group-hover/btn:scale-110 transition-transform {% if event.is_registration_closed %}bg-rose-500/10 text-rose-400{% else %}bg-emerald-500/10 text-emerald-400{% endif %}">
-                                <i data-lucide="user-plus" class="w-6 h-6 sm:w-7 sm:h-7"></i>
-                            </div>
-                            <span id="reg-toggle-text" class="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.1em] sm:tracking-[0.2em] group-hover/btn:text-white transition-colors text-center leading-tight">
-                                {% if event.is_registration_closed %}فتح التسجيل{% else %}إغلاق التسجيل{% endif %}
-                            </span>
-                        </button>
-                        <button onclick="toggleGroupPoints()" id="points-toggle-btn" 
-                                class="flex flex-col items-center justify-center p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2.5rem] bg-slate-950/40 border border-slate-800/50 hover:bg-slate-900 transition-all group/btn {% if not event.allow_group_points %}border-rose-500/30{% else %}border-emerald-500/30{% endif %}">
-                            <div class="p-3 sm:p-4 rounded-2xl mb-3 sm:mb-4 group-hover/btn:scale-110 transition-transform {% if not event.allow_group_points %}bg-rose-500/10 text-rose-400{% else %}bg-emerald-500/10 text-emerald-400{% endif %}">
-                                <i data-lucide="layers" class="w-6 h-6 sm:w-7 sm:h-7"></i>
-                            </div>
-                            <span id="points-toggle-text" class="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.1em] sm:tracking-[0.2em] group-hover/btn:text-white transition-colors text-center leading-tight">
-                                {% if event.allow_group_points %}إغلاق النقاط{% else %}فتح النقاط{% endif %}
-                            </span>
-                        </button>
-                        <button onclick="toggleExistingStudentsRegistration()" id="existing-toggle-btn"
-                                class="flex flex-col items-center justify-center p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2.5rem] bg-slate-950/40 border border-slate-800/50 hover:bg-slate-900 transition-all group/btn {% if not event.allow_existing_students_registration %}border-rose-500/30{% else %}border-emerald-500/30{% endif %}">
-                            <div class="p-3 sm:p-4 rounded-2xl mb-3 sm:mb-4 group-hover/btn:scale-110 transition-transform {% if not event.allow_existing_students_registration %}bg-rose-500/10 text-rose-400{% else %}bg-emerald-500/10 text-emerald-400{% endif %}">
-                                <i data-lucide="user-x" class="w-6 h-6 sm:w-7 sm:h-7"></i>
-                            </div>
-                            <span id="existing-toggle-text" class="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.1em] sm:tracking-[0.2em] group-hover/btn:text-white transition-colors text-center leading-tight">
-                                {% if event.allow_existing_students_registration %}قفل تسجيل القدامى{% else %}فتح تسجيل القدامى{% endif %}
-                            </span>
-                        </button>
-                        <form method="post" action="{% url 'dashboard:admin_backup_download' %}" class="contents">
-                            {% csrf_token %}
-                            <button type="submit" class="w-full flex flex-col items-center justify-center p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2.5rem] bg-slate-950/40 border border-slate-800/50 hover:border-emerald-500/50 hover:bg-slate-900 transition-all group/btn">
-                                <div class="p-3 sm:p-4 bg-emerald-500/10 rounded-2xl mb-3 sm:mb-4 group-hover/btn:scale-110 transition-transform">
-                                    <i data-lucide="download-cloud" class="w-6 h-6 sm:w-7 sm:h-7 text-emerald-400"></i>
-                                </div>
-                                <span class="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.1em] sm:tracking-[0.2em] text-slate-400 group-hover/btn:text-emerald-400 transition-colors text-center">Backup</span>
-                            </button>
-                        </form>
-                        {% if event_status == 'متوقفة' %}
-                        <form method="post" action="{% url 'dashboard:admin_send_certificates' %}" class="contents">
-                            {% csrf_token %}
-                            <button type="submit" class="w-full flex flex-col items-center justify-center p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2.5rem] bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20 transition-all group/btn">
-                                <div class="p-3 sm:p-4 bg-rose-500/10 rounded-2xl mb-3 sm:mb-4 group-hover/btn:scale-110 transition-transform">
-                                    <i data-lucide="file-badge" class="w-6 h-6 sm:w-7 sm:h-7 text-rose-400"></i>
-                                </div>
-                                <span class="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.1em] sm:tracking-[0.2em] text-rose-400 text-center">Certs</span>
-                            </button>
-                        </form>
-                        {% endif %}
-                        <form method="post" action="{% url 'dashboard:admin_factory_reset' %}" class="contents" onsubmit="return confirm('حذف كل البيانات؟');">
-                            {% csrf_token %}
-                            <button type="submit" class="w-full flex flex-col items-center justify-center p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2.5rem] bg-red-500/5 border border-red-500/10 hover:border-red-500/50 hover:bg-red-500/10 transition-all group/btn">
-                                <div class="p-3 sm:p-4 bg-red-500/10 rounded-2xl mb-3 sm:mb-4 group-hover/btn:scale-110 transition-transform">
-                                    <i data-lucide="trash-2" class="w-6 h-6 sm:w-7 sm:h-7 text-red-400"></i>
-                                </div>
-                                <span class="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.1em] sm:tracking-[0.2em] text-red-500/50 group-hover/btn:text-red-500 transition-colors text-center">Reset</span>
-                            </button>
-                        </form>
-                        <button onclick="toggleMaintenance()" id="maintenance-toggle-btn" 
-                                class="flex flex-col items-center justify-center p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2.5rem] bg-slate-950/40 border border-slate-800/50 hover:bg-slate-900 transition-all group/btn {% if event.is_maintenance_mode %}border-rose-500/30{% endif %}">
-                            <div class="p-3 sm:p-4 rounded-2xl mb-3 sm:mb-4 group-hover/btn:scale-110 transition-transform {% if event.is_maintenance_mode %}bg-rose-500/10 text-rose-400{% else %}bg-slate-900 text-slate-500{% endif %}">
-                                <i data-lucide="wrench" class="w-6 h-6 sm:w-7 sm:h-7"></i>
-                            </div>
-                            <span id="maintenance-toggle-text" class="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.1em] sm:tracking-[0.2em] group-hover/btn:text-white transition-colors text-center leading-tight">
-                                {% if event.is_maintenance_mode %}إلغاء الصيانة{% else %}تفعيل الصيانة{% endif %}
-                            </span>
-                        </button>
-                        <a href="{% url 'dashboard:admin_archive_event' %}" class="w-full flex flex-col items-center justify-center p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2.5rem] bg-indigo-500/10 border border-indigo-500/20 hover:border-indigo-500/50 hover:bg-indigo-500/20 transition-all group/btn">
-                            <div class="p-3 sm:p-4 bg-indigo-500/10 rounded-2xl mb-3 sm:mb-4 group-hover/btn:scale-110 transition-transform">
-                                <i data-lucide="archive" class="w-6 h-6 sm:w-7 sm:h-7 text-indigo-400"></i>
-                            </div>
-                            <span class="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.1em] sm:tracking-[0.2em] text-indigo-400 text-center">Archive</span>
-                        </a>
-                    </div>
                 </div>
             </div>
 
@@ -765,7 +964,87 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
+
+            <!-- Quick Links -->
+            <div class="bg-slate-900/40 backdrop-blur-xl border border-slate-800/50 rounded-[1.5rem] sm:rounded-[2.5rem] p-6 sm:p-8 hover:border-cyan-500/30 transition-all group/links shadow-2xl">
+                <div class="flex items-center gap-3 mb-6 sm:mb-8">
+                    <div class="w-1.5 h-6 bg-cyan-500 rounded-full shadow-[0_0_15px_rgba(6,182,212,0.5)]"></div>
+                    <h2 class="text-lg sm:text-xl font-black text-white tracking-tight">روابط سريعة</h2>
+                </div>
+                <div class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
+                    <a href="{% url 'dashboard:admin_current_event_students' %}" class="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-2xl bg-slate-950/50 border border-slate-800/60 hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-all group/ql text-center">
+                        <i data-lucide="users" class="w-5 h-5 sm:w-6 sm:h-6 text-cyan-400 group-hover/ql:scale-110 transition-transform"></i>
+                        <span class="text-[10px] sm:text-xs font-bold text-slate-300 group-hover/ql:text-white transition-colors">طلاب الفعالية</span>
+                    </a>
+                    <a href="{% url 'dashboard:admin_current_event_registrations' %}" class="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-2xl bg-slate-950/50 border border-slate-800/60 hover:border-amber-500/50 hover:bg-amber-500/5 transition-all group/ql text-center">
+                        <i data-lucide="clipboard-list" class="w-5 h-5 sm:w-6 sm:h-6 text-amber-400 group-hover/ql:scale-110 transition-transform"></i>
+                        <span class="text-[10px] sm:text-xs font-bold text-slate-300 group-hover/ql:text-white transition-colors">طلبات التسجيل</span>
+                    </a>
+                    <a href="{% url 'dashboard:admin_groups' %}" class="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-2xl bg-slate-950/50 border border-slate-800/60 hover:border-violet-500/50 hover:bg-violet-500/5 transition-all group/ql text-center">
+                        <i data-lucide="layers" class="w-5 h-5 sm:w-6 sm:h-6 text-violet-400 group-hover/ql:scale-110 transition-transform"></i>
+                        <span class="text-[10px] sm:text-xs font-bold text-slate-300 group-hover/ql:text-white transition-colors">المجموعات</span>
+                    </a>
+                    <a href="{% url 'dashboard:admin_schedule' %}" class="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-2xl bg-slate-950/50 border border-slate-800/60 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all group/ql text-center">
+                        <i data-lucide="calendar-days" class="w-5 h-5 sm:w-6 sm:h-6 text-emerald-400 group-hover/ql:scale-110 transition-transform"></i>
+                        <span class="text-[10px] sm:text-xs font-bold text-slate-300 group-hover/ql:text-white transition-colors">الجدول</span>
+                    </a>
+                    <a href="{% url 'dashboard:admin_workshops' %}" class="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-2xl bg-slate-950/50 border border-slate-800/60 hover:border-fuchsia-500/50 hover:bg-fuchsia-500/5 transition-all group/ql text-center">
+                        <i data-lucide="cpu" class="w-5 h-5 sm:w-6 sm:h-6 text-fuchsia-400 group-hover/ql:scale-110 transition-transform"></i>
+                        <span class="text-[10px] sm:text-xs font-bold text-slate-300 group-hover/ql:text-white transition-colors">الورش</span>
+                    </a>
+                    <a href="{% url 'dashboard:admin_supervisors' %}" class="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-2xl bg-slate-950/50 border border-slate-800/60 hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-all group/ql text-center">
+                        <i data-lucide="shield-user" class="w-5 h-5 sm:w-6 sm:h-6 text-cyan-400 group-hover/ql:scale-110 transition-transform"></i>
+                        <span class="text-[10px] sm:text-xs font-bold text-slate-300 group-hover/ql:text-white transition-colors">المشرفون</span>
+                    </a>
+                    <a href="{% url 'dashboard:admin_volunteers' %}" class="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-2xl bg-slate-950/50 border border-slate-800/60 hover:border-teal-500/50 hover:bg-teal-500/5 transition-all group/ql text-center">
+                        <i data-lucide="heart-handshake" class="w-5 h-5 sm:w-6 sm:h-6 text-teal-400 group-hover/ql:scale-110 transition-transform"></i>
+                        <span class="text-[10px] sm:text-xs font-bold text-slate-300 group-hover/ql:text-white transition-colors">المتطوعون</span>
+                    </a>
+                    <a href="{% url 'dashboard:admin_reports' %}" class="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-2xl bg-slate-950/50 border border-slate-800/60 hover:border-rose-500/50 hover:bg-rose-500/5 transition-all group/ql text-center">
+                        <i data-lucide="bar-chart-3" class="w-5 h-5 sm:w-6 sm:h-6 text-rose-400 group-hover/ql:scale-110 transition-transform"></i>
+                        <span class="text-[10px] sm:text-xs font-bold text-slate-300 group-hover/ql:text-white transition-colors">التقارير</span>
+                    </a>
+                    <a href="{% url 'dashboard:admin_statistics' %}" class="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-2xl bg-slate-950/50 border border-slate-800/60 hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all group/ql text-center">
+                        <i data-lucide="pie-chart" class="w-5 h-5 sm:w-6 sm:h-6 text-indigo-400 group-hover/ql:scale-110 transition-transform"></i>
+                        <span class="text-[10px] sm:text-xs font-bold text-slate-300 group-hover/ql:text-white transition-colors">الإحصائيات</span>
+                    </a>
+                    <a href="{% url 'dashboard:admin_notifications' %}" class="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-2xl bg-slate-950/50 border border-slate-800/60 hover:border-orange-500/50 hover:bg-orange-500/5 transition-all group/ql text-center">
+                        <i data-lucide="bell" class="w-5 h-5 sm:w-6 sm:h-6 text-orange-400 group-hover/ql:scale-110 transition-transform"></i>
+                        <span class="text-[10px] sm:text-xs font-bold text-slate-300 group-hover/ql:text-white transition-colors">التنبيهات</span>
+                    </a>
+                    <a href="{% url 'dashboard:admin_custom_email' %}" class="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-2xl bg-slate-950/50 border border-slate-800/60 hover:border-sky-500/50 hover:bg-sky-500/5 transition-all group/ql text-center">
+                        <i data-lucide="mail" class="w-5 h-5 sm:w-6 sm:h-6 text-sky-400 group-hover/ql:scale-110 transition-transform"></i>
+                        <span class="text-[10px] sm:text-xs font-bold text-slate-300 group-hover/ql:text-white transition-colors">بريد مخصص</span>
+                    </a>
+                    <a href="{% url 'dashboard:admin_logs' %}" class="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-2xl bg-slate-950/50 border border-slate-800/60 hover:border-slate-500/50 hover:bg-slate-500/5 transition-all group/ql text-center">
+                        <i data-lucide="scroll-text" class="w-5 h-5 sm:w-6 sm:h-6 text-slate-400 group-hover/ql:scale-110 transition-transform"></i>
+                        <span class="text-[10px] sm:text-xs font-bold text-slate-300 group-hover/ql:text-white transition-colors">سجل العمليات</span>
+                    </a>
+                    <a href="{% url 'dashboard:admin_public_screen' %}" class="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-2xl bg-slate-950/50 border border-slate-800/60 hover:border-pink-500/50 hover:bg-pink-500/5 transition-all group/ql text-center">
+                        <i data-lucide="monitor" class="w-5 h-5 sm:w-6 sm:h-6 text-pink-400 group-hover/ql:scale-110 transition-transform"></i>
+                        <span class="text-[10px] sm:text-xs font-bold text-slate-300 group-hover/ql:text-white transition-colors">شاشة العرض</span>
+                    </a>
+                    <a href="{% url 'dashboard:admin_app_versions' %}" class="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-2xl bg-slate-950/50 border border-slate-800/60 hover:border-lime-500/50 hover:bg-lime-500/5 transition-all group/ql text-center">
+                        <i data-lucide="smartphone" class="w-5 h-5 sm:w-6 sm:h-6 text-lime-400 group-hover/ql:scale-110 transition-transform"></i>
+                        <span class="text-[10px] sm:text-xs font-bold text-slate-300 group-hover/ql:text-white transition-colors">إصدارات التطبيق</span>
+                    </a>
+                    <a href="{% url 'dashboard:admin_devices' %}" class="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-2xl bg-slate-950/50 border border-slate-800/60 hover:border-blue-500/50 hover:bg-blue-500/5 transition-all group/ql text-center">
+                        <i data-lucide="tablet-smartphone" class="w-5 h-5 sm:w-6 sm:h-6 text-blue-400 group-hover/ql:scale-110 transition-transform"></i>
+                        <span class="text-[10px] sm:text-xs font-bold text-slate-300 group-hover/ql:text-white transition-colors">الأجهزة</span>
+                    </a>
+                    <a href="{% url 'dashboard:admin_public_forms' %}" class="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-2xl bg-slate-950/50 border border-slate-800/60 hover:border-purple-500/50 hover:bg-purple-500/5 transition-all group/ql text-center">
+                        <i data-lucide="form-input" class="w-5 h-5 sm:w-6 sm:h-6 text-purple-400 group-hover/ql:scale-110 transition-transform"></i>
+                        <span class="text-[10px] sm:text-xs font-bold text-slate-300 group-hover/ql:text-white transition-colors">الاستمارات</span>
+                    </a>
+                    <a href="{% url 'dashboard:admin_smart_search' %}" class="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-2xl bg-slate-950/50 border border-slate-800/60 hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-all group/ql text-center">
+                        <i data-lucide="search" class="w-5 h-5 sm:w-6 sm:h-6 text-cyan-400 group-hover/ql:scale-110 transition-transform"></i>
+                        <span class="text-[10px] sm:text-xs font-bold text-slate-300 group-hover/ql:text-white transition-colors">البحث الذكي</span>
+                    </a>
+                    <a href="{% url 'dashboard:admin_event_settings' %}" class="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-2xl bg-slate-950/50 border border-slate-800/60 hover:border-yellow-500/50 hover:bg-yellow-500/5 transition-all group/ql text-center">
+                        <i data-lucide="settings" class="w-5 h-5 sm:w-6 sm:h-6 text-yellow-400 group-hover/ql:scale-110 transition-transform"></i>
+                        <span class="text-[10px] sm:text-xs font-bold text-slate-300 group-hover/ql:text-white transition-colors">إعدادات الفعالية</span>
+                    </a>
+                </div>
+            </div>
 </div>
 {% endblock %}

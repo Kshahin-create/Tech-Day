@@ -26,7 +26,7 @@ def require_attendance_staff(user):
 
 @login_required
 def volunteer_dashboard(request):
-    if not request.user.is_volunteer() and not request.user.is_admin():
+    if not require_attendance_staff(request.user):
         return HttpResponseForbidden()
     recent_violations = (
         StudentViolation.objects.filter(reported_by=request.user)
@@ -235,14 +235,6 @@ def scan_qr(request):
         )
         
     if request.method == 'POST':
-        if event and not event.allow_group_points and not request.user.is_admin():
-            return JsonResponse(
-                {
-                    'success': False,
-                    'message': 'عذراً، إضافة النقاط مغلقة حالياً بقرار من الإدارة.',
-                }
-            )
-            
         student_id = request.POST.get('student_id')
         status_value = request.POST.get('status') or Attendance.Status.PRESENT
         
@@ -386,14 +378,6 @@ def scan_session_qr(request, session_id):
         pk=session_id,
     )
     if request.method == 'POST':
-        if event and not event.allow_group_points and not request.user.is_admin():
-            return JsonResponse(
-                {
-                    'success': False,
-                    'message': 'عذراً، إضافة النقاط مغلقة حالياً بقرار من الإدارة.',
-                }
-            )
-            
         student_id = request.POST.get('student_id')
         status_value = request.POST.get('status') or Attendance.Status.PRESENT
         
@@ -572,8 +556,7 @@ def volunteer_notes(request):
     """
     View for volunteers and supervisors to submit notes/feedback to the admin.
     """
-    is_staff = request.user.is_admin() or request.user.is_volunteer() or request.user.is_supervisor()
-    if not is_staff:
+    if not require_attendance_staff(request.user):
         return HttpResponseForbidden()
     
     if request.method == 'POST':
@@ -596,9 +579,7 @@ def volunteer_notes(request):
 
 @login_required
 def volunteer_report_violation(request):
-    if not getattr(request.user, 'is_volunteer', lambda: False)() and not getattr(
-        request.user, 'is_admin', lambda: False
-    )():
+    if not require_attendance_staff(request.user):
         return HttpResponseForbidden()
     if request.method != 'POST':
         return HttpResponseForbidden()
@@ -631,9 +612,7 @@ def volunteer_report_violation(request):
 
 @login_required
 def volunteer_schedule(request):
-    if not getattr(request.user, 'is_volunteer', lambda: False)() and not getattr(
-        request.user, 'is_admin', lambda: False
-    )():
+    if not require_attendance_staff(request.user):
         return HttpResponseForbidden()
 
     current_event = Event.get_current()
@@ -699,10 +678,6 @@ def supervisor_award_points(request):
     event = Event.get_current()
     
     if request.method == 'POST':
-        if event and not event.allow_group_points and not request.user.is_admin():
-            messages.error(request, 'عذراً، إضافة النقاط مغلقة حالياً بقرار من الإدارة.')
-            return redirect('attendance:award_points')
-            
         student_id = request.POST.get('student_id')
         points = int(request.POST.get('points', 0))
         reason = request.POST.get('reason', 'مشاركة متميزة')
