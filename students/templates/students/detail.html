@@ -51,8 +51,8 @@
             <div class="relative group/avatar shrink-0">
                 <div class="absolute -inset-1.5 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-[3rem] blur opacity-30 group-hover/avatar:opacity-60 transition duration-500"></div>
                 <div class="relative w-40 h-40 md:w-56 md:h-56 rounded-[2.5rem] bg-slate-950 border-4 border-slate-800 overflow-hidden flex items-center justify-center shadow-2xl">
-                    {% if student.avatar %}
-                        <img src="{{ student.avatar.url }}" alt="{{ student.name }}" class="w-full h-full object-cover group-hover/avatar:scale-110 transition-transform duration-700">
+                    {% if student.profile_picture %}
+                        <img src="{{ student.profile_picture.url }}" alt="{{ student.name }}" class="w-full h-full object-cover group-hover/avatar:scale-110 transition-transform duration-700">
                     {% else %}
                         <div class="flex flex-col items-center justify-center text-slate-700 group-hover/avatar:text-cyan-500 transition-colors">
                             <i data-lucide="user-circle-2" class="w-24 h-24 md:w-32 md:h-32 stroke-[1]"></i>
