@@ -23,6 +23,29 @@
 
             <div class="bg-slate-950/50 border border-slate-800 rounded-2xl p-6 text-right space-y-4">
                 <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                    <i data-lucide="info" class="w-4 h-4"></i> ملخص الفعالية الحالية
+                </h3>
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="text-center p-3 rounded-xl bg-slate-900/50 border border-slate-800">
+                        <div class="text-2xl font-black text-cyan-400">{{ total_registered }}</div>
+                        <div class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-1">طالب مسجل</div>
+                    </div>
+                    <div class="text-center p-3 rounded-xl bg-slate-900/50 border border-slate-800">
+                        <div class="text-2xl font-black text-emerald-400">{{ total_checked_in }}</div>
+                        <div class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-1">حاضر</div>
+                    </div>
+                    <div class="text-center p-3 rounded-xl bg-slate-900/50 border border-slate-800">
+                        <div class="text-2xl font-black text-amber-400">{{ total_points }}</div>
+                        <div class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-1">أعلى نقاط</div>
+                    </div>
+                </div>
+                <p class="text-[11px] text-slate-500 leading-relaxed">
+                    سيتم أرشفة بيانات <span class="text-white font-bold">{{ total_registered }}</span> طالب مسجل في هذه الفعالية فقط. الطلاب غير المسجلين لن يتأثروا.
+                </p>
+            </div>
+
+            <div class="bg-slate-950/50 border border-slate-800 rounded-2xl p-6 text-right space-y-4">
+                <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
                     <i data-lucide="info" class="w-4 h-4"></i> ماذا سيحدث بعد الأرشفة؟
                 </h3>
                 <ul class="space-y-3">
@@ -32,7 +55,7 @@
                     </li>
                     <li class="flex items-start gap-3 text-sm text-slate-300">
                         <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500 shrink-0 mt-0.5"></i>
-                        <span>سيتم تصفير نقاط الطلاب والمجموعات والحضور في النظام الرئيسي.</span>
+                        <span>سيتم تصفير نقاط الطلاب المسجلين والمجموعات والحضور في النظام الرئيسي.</span>
                     </li>
                     <li class="flex items-start gap-3 text-sm text-slate-300">
                         <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500 shrink-0 mt-0.5"></i>

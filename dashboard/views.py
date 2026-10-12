@@ -523,38 +523,56 @@ def admin_archive_event(request):
         messages.error(request, 'لا توجد فعالية نشطة حالياً لأرشفتها.')
         return redirect('dashboard:admin_event_settings')
     
+    if current_event.is_archived:
+        messages.error(request, 'هذه الفعالية مؤرشفة بالفعل.')
+        return redirect('dashboard:admin_archived_events_list')
+    
+    registered_students = Student.objects.filter(
+        registrations__event=current_event,
+        registrations__status=StudentRegistration.Status.APPROVED,
+        registrations__removed_at__isnull=True,
+    ).distinct()
+    
     if request.method == 'POST':
         with transaction.atomic():
-            # 1. Capture current student stats into StudentEventStats
-            students = Student.objects.all()
-            for student in students:
-                StudentEventStats.objects.update_or_create(
+            current_event = Event.objects.select_for_update().get(pk=current_event.pk)
+            
+            if current_event.is_archived:
+                messages.error(request, 'هذه الفعالية مؤرشفة بالفعل.')
+                return redirect('dashboard:admin_archived_events_list')
+            
+            students_list = list(registered_students)
+            
+            StudentEventStats.objects.filter(event=current_event).delete()
+            
+            stats_to_create = [
+                StudentEventStats(
                     student=student,
                     event=current_event,
-                    defaults={
-                        'points': student.points,
-                        'checked_in': student.checked_in,
-                        'checked_in_at': student.checked_in_at,
-                    },
+                    points=student.points,
+                    checked_in=student.checked_in,
+                    checked_in_at=student.checked_in_at,
                 )
-                # Reset student for next event
+                for student in students_list
+            ]
+            StudentEventStats.objects.bulk_create(stats_to_create)
+            
+            for student in students_list:
                 student.points = 0
                 student.checked_in = False
                 student.checked_in_at = None
-                student.save(update_fields=['points', 'checked_in', 'checked_in_at'])
+            Student.objects.bulk_update(students_list, ['points', 'checked_in', 'checked_in_at'])
             
-            # 2. Archive the event
             current_event.is_active = False
             current_event.is_archived = True
             current_event.is_finished = True
-            current_event.save()
+            current_event.save(update_fields=['is_active', 'is_archived', 'is_finished'])
             
-            # 3. Create a new empty event
-            # Logic for execution number: same location, same year -> increment
-            next_exec = Event.objects.filter(
+            max_exec = Event.objects.filter(
                 location_name=current_event.location_name,
-                year=current_event.year
-            ).count() + 1
+                year=current_event.year,
+            ).aggregate(max_exec=Max('execution_number'))['max_exec'] or 0
+            next_exec = max_exec + 1
             
             Event.objects.create(
                 name=current_event.name,
@@ -566,17 +584,27 @@ def admin_archive_event(request):
                 whatsapp_group_link=current_event.whatsapp_group_link,
                 event_instructions=current_event.event_instructions,
                 max_students=current_event.max_students,
-                is_active=True
+                is_active=True,
             )
             
             AdminLog.objects.create(
-                action=f'تم أرشفة الفعالية {current_event} وبدء فعالية جديدة رقم {next_exec}'
+                action=f'تم أرشفة الفعالية {current_event} وبدء فعالية جديدة رقم {next_exec}',
+                event=current_event,
             )
             
-            messages.success(request, f'تم أرشفة الفعالية بنجاح برابط: {current_event.slug}. النظام الآن جاهز للفعالية الجديدة.')
+            messages.success(request, f'تم أرشفة {len(students_list)} طالب بنجاح. الفعالية الجديدة رقم {next_exec} جاهزة.')
             return redirect('dashboard:admin_archived_events_list')
-            
-    return render(request, 'dashboard/admin_archive_confirm.html', {'event': current_event})
+    
+    total_registered = registered_students.count()
+    total_checked_in = registered_students.filter(checked_in=True).count()
+    total_points = registered_students.aggregate(total=Max('points'))['total'] or 0
+    
+    return render(request, 'dashboard/admin_archive_confirm.html', {
+        'event': current_event,
+        'total_registered': total_registered,
+        'total_checked_in': total_checked_in,
+        'total_points': total_points,
+    })
 
 
 @login_required
