@@ -39,11 +39,37 @@ def volunteer_dashboard(request):
         .select_related('student')
         .order_by('-created_at')[:10]
     )
+
+    # عداد المسحات اليوم للمستخدم الحالي
+    today_start = timezone.localtime().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_scans_count = Attendance.objects.filter(
+        scanned_by=request.user,
+        scanned_at__gte=today_start,
+    ).count()
+
+    # إجمالي الطلاب المسجلين في الفعالية الحالية
+    event = Event.get_current()
+    total_students = 0
+    checked_in_count = 0
+    if event:
+        total_students = StudentRegistration.objects.filter(
+            event=event,
+            status=StudentRegistration.Status.APPROVED,
+            removed_at__isnull=True,
+        ).count()
+        checked_in_count = StudentEventStats.objects.filter(
+            event=event,
+            checked_in=True,
+        ).count()
+
     return render(
         request,
         'attendance/volunteer_dashboard.html',
         {
             'recent_violations': recent_violations,
+            'today_scans_count': today_scans_count,
+            'total_students': total_students,
+            'checked_in_count': checked_in_count,
         },
     )
 
@@ -125,7 +151,7 @@ def _send_attendance_email(student, session, workshop_title, now):
     send_email_async(message, 'تأكيد حضور ورشة')
 
 
-def _register_attendance_for_session(student, session, status_value, event=None):
+def _register_attendance_for_session(student, session, status_value, event=None, scanned_by=None):
     now = timezone.localtime()
     workshop_title = ''
     points_awarded = 0
@@ -161,6 +187,7 @@ def _register_attendance_for_session(student, session, status_value, event=None)
                 session=session,
                 status=status_value,
                 scanned_at=now,
+                scanned_by=scanned_by,
             )
             # إضافة نقاط للطالب وللمجموعة عند أول تسجيل حضور للجلسة (إذا كان ذلك مسموحاً)
             if status_value == Attendance.Status.PRESENT:
@@ -327,7 +354,7 @@ def scan_qr(request):
             ).order_by('start_time').first()
 
         try:
-            workshop_title, is_event_already_checked_in, points_awarded, is_session_already_registered, new_badges = _register_attendance_for_session(student, session, status_value, event=event)
+            workshop_title, is_event_already_checked_in, points_awarded, is_session_already_registered, new_badges = _register_attendance_for_session(student, session, status_value, event=event, scanned_by=request.user)
         except Exception as e:
             return JsonResponse(
                 {
@@ -420,7 +447,7 @@ def scan_session_qr(request, session_id):
                 }
             )
         try:
-            workshop_title, is_event_already_checked_in, points_awarded, is_session_already_registered, new_badges = _register_attendance_for_session(student, session, status_value, event=event)
+            workshop_title, is_event_already_checked_in, points_awarded, is_session_already_registered, new_badges = _register_attendance_for_session(student, session, status_value, event=event, scanned_by=request.user)
         except Exception as e:
             return JsonResponse(
                 {
@@ -511,6 +538,7 @@ def mark_all_group_present(request, session_id):
             defaults={
                 'status': Attendance.Status.PRESENT,
                 'scanned_at': now,
+                'scanned_by': request.user,
             }
         )
         
@@ -774,3 +802,98 @@ def search_students(request):
         })
     
     return JsonResponse({'success': True, 'students': results})
+
+
+@login_required
+def volunteer_student_lookup(request):
+    """بحث سريع عن طالب وعرض تفاصيله (مجموعة، ورشة، حالة الدخول) بدون بلاغ."""
+    if not require_attendance_staff(request.user):
+        return JsonResponse({'success': False, 'message': 'غير مسموح.'}, status=403)
+
+    student_id = (request.GET.get('student_id') or request.POST.get('student_id') or '').strip()
+    if not student_id:
+        return JsonResponse({'success': False, 'message': 'يرجى إدخال رقم الطالب.'})
+
+    student = Student.objects.filter(student_id=student_id).first()
+    if not student:
+        return JsonResponse({'success': False, 'message': 'لم يتم العثور على طالب بهذا الرقم.'})
+
+    event = Event.get_current()
+    is_registered = False
+    checked_in = False
+    group_code = ''
+    group_name = ''
+    current_workshop = ''
+
+    if event:
+        reg = StudentRegistration.objects.filter(
+            student=student, event=event,
+            status=StudentRegistration.Status.APPROVED, removed_at__isnull=True,
+        ).first()
+        is_registered = reg is not None
+
+        stats = StudentEventStats.objects.filter(student=student, event=event).first()
+        checked_in = stats.checked_in if stats else False
+
+        if student.group and student.group.event == event:
+            group_code = student.group.code
+            group_name = student.group.name
+            now = timezone.localtime()
+            current_session = WorkshopSession.objects.filter(
+                group=student.group,
+                start_time__lte=now.time(),
+                end_time__gte=now.time(),
+            ).select_related('workshop').first()
+            if current_session:
+                current_workshop = current_session.workshop.title
+
+    return JsonResponse({
+        'success': True,
+        'student': {
+            'student_id': student.student_id,
+            'name': student.name,
+            'school': student.school or '—',
+            'group_code': group_code or 'بدون مجموعة',
+            'group_name': group_name or '—',
+            'current_workshop': current_workshop or 'لا توجد ورشة حالية',
+            'is_registered': is_registered,
+            'checked_in': checked_in,
+            'points': student.points,
+        }
+    })
+
+
+@login_required
+def session_attendance_list(request, session_id):
+    """عرض قائمة الحاضرين والغائبين في جلسة لعمل رول كول يدوي."""
+    if not require_attendance_staff(request.user):
+        return HttpResponseForbidden()
+
+    session = get_object_or_404(
+        WorkshopSession.objects.select_related('workshop', 'group', 'workshop__event'),
+        pk=session_id,
+    )
+    event = session.workshop.event or Event.get_current()
+
+    present_ids = Attendance.objects.filter(
+        session=session, status=Attendance.Status.PRESENT
+    ).values_list('student_id', flat=True)
+
+    students = Student.objects.filter(
+        group=session.group,
+        registrations__event=event,
+        registrations__status=StudentRegistration.Status.APPROVED,
+        registrations__removed_at__isnull=True,
+    ).distinct().order_by('name')
+
+    present_students = [s for s in students if s.id in present_ids]
+    absent_students = [s for s in students if s.id not in present_ids]
+
+    return render(request, 'attendance/session_attendance.html', {
+        'session': session,
+        'present_students': present_students,
+        'absent_students': absent_students,
+        'present_count': len(present_students),
+        'absent_count': len(absent_students),
+        'total_count': len(students),
+    })

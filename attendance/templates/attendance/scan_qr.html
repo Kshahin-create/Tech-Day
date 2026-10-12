@@ -40,6 +40,11 @@
             </button>
         </form>
         {% endif %}
+        <a href="{% url 'attendance:session_attendance' session.id %}"
+           class="shrink-0 flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 text-xs font-black border border-slate-700/50 transition-all active:scale-95">
+            <i data-lucide="clipboard-list" class="w-4 h-4"></i>
+            قائمة الحضور
+        </a>
     </div>
     {% endif %}
 

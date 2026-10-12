@@ -1,4 +1,5 @@
 from django.db import models
+from django.conf import settings
 
 from students.models import Student
 from workshops.models import WorkshopSession
@@ -29,6 +30,14 @@ class Attendance(models.Model):
         verbose_name='الحالة',
     )
     scanned_at = models.DateTimeField(verbose_name='وقت التسجيل')
+    scanned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='scanned_attendance',
+        verbose_name='سجل بواسطة',
+    )
 
     class Meta:
         verbose_name = 'حضور'

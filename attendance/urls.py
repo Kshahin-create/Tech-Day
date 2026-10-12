@@ -12,5 +12,7 @@ urlpatterns = [
     path('notes/', views.volunteer_notes, name='volunteer_notes'),
     path('award-points/', views.supervisor_award_points, name='award_points'),
     path('volunteer/search-students/', views.search_students, name='search_students'),
+    path('volunteer/lookup/', views.volunteer_student_lookup, name='student_lookup'),
     path('scan/session/<int:session_id>/mark-all/', views.mark_all_group_present, name='mark_all_group_present'),
+    path('session/<int:session_id>/attendance/', views.session_attendance_list, name='session_attendance'),
 ]
