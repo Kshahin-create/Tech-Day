@@ -662,6 +662,20 @@ class StudentRegistrationViewSet(viewsets.ModelViewSet):
         if reg.profile_picture and not student.profile_picture:
             student.profile_picture = reg.profile_picture
             student.save(update_fields=['profile_picture'])
+        # نسخ بيانات الرقم القومي إلى حساب الطالب
+        updates = {}
+        if not student.national_id and reg.national_id:
+            updates['national_id'] = reg.national_id
+        if not student.birth_date and reg.birth_date:
+            updates['birth_date'] = reg.birth_date
+        if not student.age and reg.age:
+            updates['age'] = reg.age
+        if not student.birth_governorate and reg.birth_governorate:
+            updates['birth_governorate'] = reg.birth_governorate
+        if not student.gender and reg.gender:
+            updates['gender'] = reg.gender
+        if updates:
+            Student.objects.filter(pk=student.pk).update(**updates)
         
         # 2. Create User account if not exists
         if not student.user:

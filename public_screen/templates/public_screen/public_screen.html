@@ -417,6 +417,37 @@
                                        class="w-full rounded-2xl bg-slate-950/50 border border-slate-800 px-4 py-3.5 text-sm text-white placeholder:text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 transition-all">
                             </div>
 
+                            <!-- National ID -->
+                            <div class="md:col-span-2 space-y-2 group">
+                                <label for="national_id" class="text-xs font-bold text-slate-400 group-focus-within:text-cyan-400 transition-colors flex items-center gap-2">
+                                    <i data-lucide="id-card" class="w-3.5 h-3.5"></i>
+                                    الرقم القومي <span class="text-rose-400">*</span>
+                                    <span class="text-slate-600 font-normal">(14 رقم)</span>
+                                </label>
+                                <input id="national_id" name="national_id" type="text" required inputmode="numeric"
+                                       maxlength="14" minlength="14" pattern="^[0-9]{14}$" placeholder="اكتب الرقم القومي الـ 14 رقم"
+                                       class="w-full rounded-2xl bg-slate-950/50 border border-slate-800 px-4 py-3.5 text-sm text-white placeholder:text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 transition-all font-mono tracking-widest">
+                                <div id="nid-info" class="hidden grid grid-cols-2 md:grid-cols-4 gap-2 pt-2">
+                                    <div class="bg-slate-950/40 rounded-xl border border-slate-800/50 p-3 text-center">
+                                        <p class="text-[10px] text-slate-500 uppercase">تاريخ الميلاد</p>
+                                        <p id="nid-birth-date" class="text-sm font-bold text-cyan-400">-</p>
+                                    </div>
+                                    <div class="bg-slate-950/40 rounded-xl border border-slate-800/50 p-3 text-center">
+                                        <p class="text-[10px] text-slate-500 uppercase">السن</p>
+                                        <p id="nid-age" class="text-sm font-bold text-cyan-400">-</p>
+                                    </div>
+                                    <div class="bg-slate-950/40 rounded-xl border border-slate-800/50 p-3 text-center">
+                                        <p class="text-[10px] text-slate-500 uppercase">محافظة الميلاد</p>
+                                        <p id="nid-governorate" class="text-sm font-bold text-cyan-400">-</p>
+                                    </div>
+                                    <div class="bg-slate-950/40 rounded-xl border border-slate-800/50 p-3 text-center">
+                                        <p class="text-[10px] text-slate-500 uppercase">النوع</p>
+                                        <p id="nid-gender" class="text-sm font-bold text-cyan-400">-</p>
+                                    </div>
+                                </div>
+                                <p id="nid-error" class="hidden text-[11px] text-rose-400 font-semibold"></p>
+                            </div>
+
                             <!-- School Name -->
                             <div class="space-y-2 group">
                                 <label for="school" class="text-xs font-bold text-slate-400 group-focus-within:text-cyan-400 transition-colors flex items-center gap-2">
@@ -516,6 +547,37 @@
                                         <span>حذف</span>
                                     </button>
                                     <p id="pp-error" class="hidden text-[11px] text-rose-400 font-semibold"></p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ID Document -->
+                        <div class="space-y-3 group">
+                            <label class="text-xs font-bold text-slate-400 group-focus-within:text-cyan-400 transition-colors flex items-center gap-2">
+                                <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+                                صورة وثيقة التحقق من الشخصية <span class="text-rose-400">*</span>
+                            </label>
+                            <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                                <div id="id-preview-wrap" class="relative w-24 h-24 rounded-2xl bg-slate-950/60 border-2 border-dashed border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
+                                    <i data-lucide="file-text" class="w-8 h-8 text-slate-600" id="id-placeholder-icon"></i>
+                                    <img id="id-preview" class="hidden w-full h-full object-cover" alt="id document">
+                                </div>
+                                <div class="flex-1 space-y-2 w-full">
+                                    <p class="text-[11px] text-slate-500 leading-relaxed">
+                                        صورة واضحة لبطاقة الرقم القومي أو جواز السفر. ولو عمرك أقل من 15 سنة، صورة شهادة الميلاد.
+                                    </p>
+                                    <input type="file" id="id-file" accept="image/*" class="hidden">
+                                    <input type="hidden" id="id_document" name="id_document">
+                                    <button type="button" id="id-upload-btn"
+                                            class="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-all border border-slate-700">
+                                        <i data-lucide="upload" class="w-4 h-4"></i>
+                                        <span>اختر الوثيقة</span>
+                                    </button>
+                                    <button type="button" id="id-remove-btn" class="hidden inline-flex items-center gap-2 px-3 py-2 text-rose-400 hover:text-rose-300 text-xs font-bold transition-colors">
+                                        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                                        <span>حذف</span>
+                                    </button>
+                                    <p id="id-error" class="hidden text-[11px] text-rose-400 font-semibold"></p>
                                 </div>
                             </div>
                         </div>
@@ -818,6 +880,13 @@
         var phone = document.getElementById('phone_number');
         var email = document.getElementById('email');
         var school = document.getElementById('school');
+        var nid = document.getElementById('national_id');
+        var nidInfo = document.getElementById('nid-info');
+        var nidError = document.getElementById('nid-error');
+        var nidBirthDate = document.getElementById('nid-birth-date');
+        var nidAge = document.getElementById('nid-age');
+        var nidGovernorate = document.getElementById('nid-governorate');
+        var nidGender = document.getElementById('nid-gender');
         var form = document.querySelector('form[method="post"]');
 
         var AR_RE = /[^\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF\s\u00AD]/g;
@@ -825,6 +894,41 @@
         var DIGIT_RE = /[^0-9]/g;
         var SCH_RE = /[^A-Za-z\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF0-9\s\-]/g;
         var EMAIL_RE = /[^A-Za-z0-9@._\-+]/g;
+
+        var EGYPT_GOV = {
+            '01':'القاهرة','02':'الإسكندرية','03':'بورسعيد','04':'السويس','05':'دمياط','06':'الدقهلية',
+            '07':'الشرقية','08':'القليوبية','09':'كفر الشيخ','10':'الغربية','11':'المنوفية','12':'البحيرة',
+            '13':'الإسماعيلية','14':'الجيزة','15':'بني سويف','16':'الفيوم','17':'المنيا','18':'أسيوط',
+            '19':'سوهاج','20':'قنا','21':'أسوان','22':'الأقصر','23':'البحر الأحمر','24':'الوادي الجديد',
+            '25':'مطروح','26':'شمال سيناء','27':'جنوب سيناء','28':'6 أكتوبر','29':'الأقصر','30':'خارج مصر',
+            '31':'خارج مصر','32':'خارج مصر','33':'خارج مصر','34':'خارج مصر','35':'خارج مصر'
+        };
+
+        function parseNID(v) {
+            if (!/^[0-9]{14}$/.test(v)) return { valid: false };
+            var c = v[0];
+            if (c !== '2' && c !== '3') return { valid: false };
+            var century = c === '2' ? 1900 : 2000;
+            var year = century + parseInt(v.substring(1, 3), 10);
+            var month = parseInt(v.substring(3, 5), 10);
+            var day = parseInt(v.substring(5, 7), 10);
+            if (month < 1 || month > 12 || day < 1 || day > 31) return { valid: false };
+            var birth = new Date(year, month - 1, day);
+            if (birth.getFullYear() !== year || birth.getMonth() !== month - 1 || birth.getDate() !== day) return { valid: false };
+            var now = new Date();
+            var age = now.getFullYear() - birth.getFullYear();
+            if ((now.getMonth(), now.getDate()) < (birth.getMonth(), birth.getDate())) age--;
+            if (age < 0 || age > 120) return { valid: false };
+            var govCode = v.substring(7, 9);
+            var gender = parseInt(v[13], 10) % 2 === 1 ? 'ذكر' : 'أنثى';
+            return {
+                valid: true,
+                birthDate: birth.getFullYear() + '-' + String(birth.getMonth()+1).padStart(2,'0') + '-' + String(birth.getDate()).padStart(2,'0'),
+                age: age,
+                governorate: EGYPT_GOV[govCode] || 'غير معروف',
+                gender: gender
+            };
+        }
 
         function bindFilter(el, re, maxLen) {
             if (!el) return;
@@ -858,6 +962,34 @@
         bindFilter(phone, DIGIT_RE, 11);
         bindFilter(email, EMAIL_RE, 120);
         bindFilter(school, SCH_RE, 150);
+        bindFilter(nid, DIGIT_RE, 14);
+
+        if (nid) {
+            nid.addEventListener('input', function() {
+                if (nid.value.length === 14) {
+                    var info = parseNID(nid.value);
+                    if (info.valid) {
+                        nidBirthDate.textContent = info.birthDate;
+                        nidAge.textContent = info.age + ' سنة';
+                        nidGovernorate.textContent = info.governorate;
+                        nidGender.textContent = info.gender;
+                        nidInfo.classList.remove('hidden');
+                        nidInfo.classList.add('grid');
+                        nidError.classList.add('hidden');
+                        nid.classList.remove('border-rose-500');
+                    } else {
+                        nidInfo.classList.add('hidden');
+                        nidInfo.classList.remove('grid');
+                        nidError.textContent = 'الرقم القومي غير صحيح.';
+                        nidError.classList.remove('hidden');
+                    }
+                } else {
+                    nidInfo.classList.add('hidden');
+                    nidInfo.classList.remove('grid');
+                    nidError.classList.add('hidden');
+                }
+            });
+        }
 
         if (form) {
             form.addEventListener('submit', function(e) {
@@ -883,6 +1015,12 @@
                     e.preventDefault();
                     alert('أدخل بريد إلكتروني صحيح.');
                     email.focus();
+                    return false;
+                }
+                if (nid && !parseNID(nid.value).valid) {
+                    e.preventDefault();
+                    alert('الرقم القومي لازم يكون 14 رقم صحيح.');
+                    nid.focus();
                     return false;
                 }
             });
@@ -1044,6 +1182,73 @@
                     e.preventDefault();
                     showError('لازم ترفع صورة شخصية عشان تقدر ترسل الطلب.');
                     ppUploadBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    return false;
+                }
+            });
+        }
+    })();
+
+    (function() {
+        var idFile = document.getElementById('id-file');
+        var idUploadBtn = document.getElementById('id-upload-btn');
+        var idRemoveBtn = document.getElementById('id-remove-btn');
+        var idPreview = document.getElementById('id-preview');
+        var idPlaceholderIcon = document.getElementById('id-placeholder-icon');
+        var idHidden = document.getElementById('id_document');
+        var idError = document.getElementById('id-error');
+        var form = document.querySelector('form[method="post"]');
+
+        function showError(msg) {
+            idError.textContent = msg;
+            idError.classList.remove('hidden');
+        }
+        function clearError() {
+            idError.classList.add('hidden');
+        }
+
+        idUploadBtn.addEventListener('click', function() { idFile.click(); });
+
+        idFile.addEventListener('change', function(e) {
+            var file = e.target.files[0];
+            if (!file) return;
+            if (!file.type.startsWith('image/')) {
+                showError('الملف المختار مش صورة.');
+                return;
+            }
+            if (file.size > 15 * 1024 * 1024) {
+                showError('حجم الصورة كبير جدًا (أقصى حد 15 ميجا).');
+                return;
+            }
+            clearError();
+            var reader = new FileReader();
+            reader.onload = function(ev) {
+                idHidden.value = ev.target.result;
+                idPreview.src = ev.target.result;
+                idPreview.classList.remove('hidden');
+                idPlaceholderIcon.classList.add('hidden');
+                idRemoveBtn.classList.remove('hidden');
+                idUploadBtn.querySelector('span').textContent = 'تغيير الوثيقة';
+            };
+            reader.readAsDataURL(file);
+        });
+
+        idRemoveBtn.addEventListener('click', function() {
+            idHidden.value = '';
+            idPreview.src = '';
+            idPreview.classList.add('hidden');
+            idPlaceholderIcon.classList.remove('hidden');
+            idRemoveBtn.classList.add('hidden');
+            idUploadBtn.querySelector('span').textContent = 'اختر الوثيقة';
+            idFile.value = '';
+            clearError();
+        });
+
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                if (!idHidden.value) {
+                    e.preventDefault();
+                    showError('لازم ترفع صورة وثيقة التحقق من الشخصية.');
+                    idUploadBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     return false;
                 }
             });

@@ -55,6 +55,30 @@
                                 <span class="text-sm font-mono text-cyan-400">{{ registration.email }}</span>
                             </div>
                         </div>
+                        {% if registration.national_id %}
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="flex flex-col gap-1 p-4 bg-slate-950/40 rounded-2xl border border-slate-800/50">
+                                <span class="text-[10px] font-bold text-slate-500 uppercase">الرقم القومي</span>
+                                <span class="text-sm font-mono font-bold text-white">{{ registration.national_id }}</span>
+                            </div>
+                            <div class="flex flex-col gap-1 p-4 bg-slate-950/40 rounded-2xl border border-slate-800/50">
+                                <span class="text-[10px] font-bold text-slate-500 uppercase">النوع</span>
+                                <span class="text-sm font-bold text-white">{{ registration.gender|default:"-" }}</span>
+                            </div>
+                            <div class="flex flex-col gap-1 p-4 bg-slate-950/40 rounded-2xl border border-slate-800/50">
+                                <span class="text-[10px] font-bold text-slate-500 uppercase">تاريخ الميلاد</span>
+                                <span class="text-sm font-bold text-white">{{ registration.birth_date|default:"-" }}</span>
+                            </div>
+                            <div class="flex flex-col gap-1 p-4 bg-slate-950/40 rounded-2xl border border-slate-800/50">
+                                <span class="text-[10px] font-bold text-slate-500 uppercase">السن</span>
+                                <span class="text-sm font-bold text-white">{{ registration.age|default:"-" }} سنة</span>
+                            </div>
+                            <div class="col-span-2 flex flex-col gap-1 p-4 bg-slate-950/40 rounded-2xl border border-slate-800/50">
+                                <span class="text-[10px] font-bold text-slate-500 uppercase">محافظة الميلاد</span>
+                                <span class="text-sm font-bold text-white">{{ registration.birth_governorate|default:"-" }}</span>
+                            </div>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
 
@@ -114,6 +138,21 @@
                 </h3>
                 <div class="p-6 bg-amber-500/5 rounded-[2rem] border border-amber-500/10 text-sm text-slate-300 leading-relaxed italic">
                     {{ registration.interests }}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- ID Document Section -->
+            {% if registration.id_document %}
+            <div class="space-y-4 pt-4">
+                <h3 class="text-xs font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                    <i data-lucide="file-text" class="w-4 h-4 text-cyan-400"></i>
+                    وثيقة التحقق من الشخصية
+                </h3>
+                <div class="flex justify-center">
+                    <a href="{{ registration.id_document.url }}" target="_blank" class="block">
+                        <img src="{{ registration.id_document.url }}" alt="id document" class="max-w-full max-h-80 rounded-2xl object-contain border-2 border-cyan-500/30 shadow-lg">
+                    </a>
                 </div>
             </div>
             {% endif %}

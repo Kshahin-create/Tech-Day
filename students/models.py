@@ -40,6 +40,11 @@ class Student(models.Model):
     education_admin = models.CharField(max_length=150, blank=True, verbose_name='الإدارة التعليمية')
     email = models.EmailField(max_length=254, blank=True, verbose_name='البريد الإلكتروني')
     phone_number = models.CharField(max_length=20, blank=True, verbose_name='رقم الهاتف')
+    national_id = models.CharField(max_length=14, blank=True, verbose_name='الرقم القومي')
+    birth_date = models.DateField(null=True, blank=True, verbose_name='تاريخ الميلاد')
+    age = models.PositiveIntegerField(null=True, blank=True, verbose_name='السن')
+    birth_governorate = models.CharField(max_length=50, blank=True, verbose_name='محافظة الميلاد')
+    gender = models.CharField(max_length=10, blank=True, verbose_name='النوع')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='تاريخ الإضافة')
     checked_in = models.BooleanField(default=False, verbose_name='تم تسجيل دخول الفعالية')
     checked_in_at = models.DateTimeField(null=True, blank=True, verbose_name='وقت تسجيل الدخول للفعالية')
@@ -102,6 +107,17 @@ class StudentRegistration(models.Model):
         null=True,
         blank=True,
         verbose_name='الصورة الشخصية',
+    )
+    national_id = models.CharField(max_length=14, blank=True, verbose_name='الرقم القومي')
+    birth_date = models.DateField(null=True, blank=True, verbose_name='تاريخ الميلاد')
+    age = models.PositiveIntegerField(null=True, blank=True, verbose_name='السن')
+    birth_governorate = models.CharField(max_length=50, blank=True, verbose_name='محافظة الميلاد')
+    gender = models.CharField(max_length=10, blank=True, verbose_name='النوع')
+    id_document = models.ImageField(
+        upload_to='registration_documents/',
+        null=True,
+        blank=True,
+        verbose_name='وثيقة التحقق من الشخصية',
     )
     status = models.CharField(
         max_length=20,

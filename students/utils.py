@@ -1,4 +1,5 @@
 from io import BytesIO
+from datetime import date
 
 from PIL import Image
 from django.core.files.base import ContentFile
@@ -7,6 +8,109 @@ from students.models import Badge, StudentBadge, StudentEventStats
 from attendance.models import Attendance
 from workshops.models import WorkshopSession
 from dashboard.models import Event
+
+
+EGYPT_GOVERNORATES = {
+    '01': 'القاهرة',
+    '02': 'الإسكندرية',
+    '03': 'بورسعيد',
+    '04': 'السويس',
+    '05': 'دمياط',
+    '06': 'الدقهلية',
+    '07': 'الشرقية',
+    '08': 'القليوبية',
+    '09': 'كفر الشيخ',
+    '10': 'الغربية',
+    '11': 'المنوفية',
+    '12': 'البحيرة',
+    '13': 'الإسماعيلية',
+    '14': 'الجيزة',
+    '15': 'بني سويف',
+    '16': 'الفيوم',
+    '17': 'المنيا',
+    '18': 'أسيوط',
+    '19': 'سوهاج',
+    '20': 'قنا',
+    '21': 'أسوان',
+    '22': 'الأقصر',
+    '23': 'البحر الأحمر',
+    '24': 'الوادي الجديد',
+    '25': 'مطروح',
+    '26': 'شمال سيناء',
+    '27': 'جنوب سيناء',
+    '28': '6 أكتوبر',
+    '29': 'الأقصر',
+    '30': 'خارج مصر',
+    '31': 'خارج مصر',
+    '32': 'خارج مصر',
+    '33': 'خارج مصر',
+    '34': 'خارج مصر',
+    '35': 'خارج مصر',
+}
+
+
+def parse_egyptian_national_id(national_id, reference_date=None):
+    """
+    تحليل الرقم القومي المصري (14 رقم).
+    ترجع dict فيه: valid, error, birth_date, age, birth_governorate, gender.
+    """
+    national_id = (national_id or '').strip()
+    result = {
+        'valid': False,
+        'error': '',
+        'birth_date': None,
+        'age': None,
+        'birth_governorate': '',
+        'gender': '',
+    }
+
+    if len(national_id) != 14 or not national_id.isdigit():
+        result['error'] = 'الرقم القومي لازم يكون 14 رقم.'
+        return result
+
+    century_char = national_id[0]
+    if century_char not in ('2', '3'):
+        result['error'] = 'الرقم القومي غير صحيح.'
+        return result
+
+    century = 1900 if century_char == '2' else 2000
+    year = int(national_id[1:3])
+    month = int(national_id[3:5])
+    day = int(national_id[5:7])
+    full_year = century + year
+
+    if month < 1 or month > 12 or day < 1 or day > 31:
+        result['error'] = 'الرقم القومي غير صحيح.'
+        return result
+
+    try:
+        birth_date = date(full_year, month, day)
+    except ValueError:
+        result['error'] = 'الرقم القومي غير صحيح.'
+        return result
+
+    ref = reference_date or date.today()
+    age = ref.year - birth_date.year
+    if (ref.month, ref.day) < (birth_date.month, birth_date.day):
+        age -= 1
+    if age < 0 or age > 120:
+        result['error'] = 'الرقم القومي غير صحيح.'
+        return result
+
+    gov_code = national_id[7:9]
+    birth_governorate = EGYPT_GOVERNORATES.get(gov_code, 'غير معروف')
+
+    gender_digit = int(national_id[13])
+    gender = 'ذكر' if gender_digit % 2 == 1 else 'أنثى'
+
+    result.update({
+        'valid': True,
+        'birth_date': birth_date,
+        'age': age,
+        'birth_governorate': birth_governorate,
+        'gender': gender,
+    })
+    return result
 
 
 def process_profile_picture(uploaded_file, max_size=512, quality=85):

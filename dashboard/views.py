@@ -1770,6 +1770,20 @@ def admin_registration_detail(request, pk):
             if registration.profile_picture and not student.profile_picture:
                 student.profile_picture = registration.profile_picture
                 student.save(update_fields=['profile_picture'])
+            # نسخ بيانات الرقم القومي إلى حساب الطالب
+            updates = {}
+            if not student.national_id and registration.national_id:
+                updates['national_id'] = registration.national_id
+            if not student.birth_date and registration.birth_date:
+                updates['birth_date'] = registration.birth_date
+            if not student.age and registration.age:
+                updates['age'] = registration.age
+            if not student.birth_governorate and registration.birth_governorate:
+                updates['birth_governorate'] = registration.birth_governorate
+            if not student.gender and registration.gender:
+                updates['gender'] = registration.gender
+            if updates:
+                Student.objects.filter(pk=student.pk).update(**updates)
             registration.status = StudentRegistration.Status.APPROVED
             registration.student = student
             registration.approved_by = request.user

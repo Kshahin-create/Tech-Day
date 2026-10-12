@@ -18,7 +18,7 @@ from techday.utils import send_email_async, get_styled_email_html, send_registra
 from attendance.models import Attendance
 from groups.models import Group
 from students.models import Student, StudentRegistration
-from students.utils import process_profile_picture
+from students.utils import process_profile_picture, parse_egyptian_national_id
 from workshops.models import Workshop, WorkshopSession, WorkshopFeedback
 from dashboard.models import Event, AdminLog, AppVersion
 from .models import PublicForm, PublicFormField, PublicFormSubmission, PublicFormAnswer
@@ -151,6 +151,8 @@ def public_screen_view(request):
         grade = (request.POST.get('grade') or '').strip()
         interests = (request.POST.get('interests') or '').strip()
         profile_picture_data = (request.POST.get('profile_picture') or '').strip()
+        national_id = (request.POST.get('national_id') or '').strip()
+        id_document_data = (request.POST.get('id_document') or '').strip()
         if not full_name_ar or not full_name_en or not email or not phone_number or not school or not education_admin or not grade:
             messages.error(request, 'يرجى ملء جميع الحقول المطلوبة في نموذج التسجيل.')
             return redirect('public_screen:public_screen')
@@ -160,6 +162,7 @@ def public_screen_view(request):
         EN_NAME_RE = re.compile(r'^[A-Za-z\s]{2,120}$')
         PHONE_RE = re.compile(r'^01[0-9]{9}$')
         EMAIL_RE = re.compile(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
+        NID_RE = re.compile(r'^[0-9]{14}$')
 
         if not AR_NAME_RE.match(full_name_ar):
             messages.error(request, 'الاسم العربي لازم يكون أحرف عربية فقط ومينفعش أرقام أو رموز.')
@@ -173,6 +176,19 @@ def public_screen_view(request):
         if not EMAIL_RE.match(email):
             messages.error(request, 'أدخل بريد إلكتروني صحيح.')
             return redirect('public_screen:public_screen')
+        if not NID_RE.match(national_id):
+            messages.error(request, 'الرقم القومي لازم يكون 14 رقم.')
+            return redirect('public_screen:public_screen')
+
+        # تحليل الرقم القومي واستخراج بيانات الميلاد والنوع والمحافظة
+        nid_info = parse_egyptian_national_id(national_id)
+        if not nid_info['valid']:
+            messages.error(request, nid_info['error'])
+            return redirect('public_screen:public_screen')
+        birth_date = nid_info['birth_date']
+        age = nid_info['age']
+        birth_governorate = nid_info['birth_governorate']
+        gender = nid_info['gender']
 
         # معالجة الصورة الشخصية (base64 من Cropper.js)
         profile_picture_file = None
@@ -186,6 +202,18 @@ def public_screen_view(request):
                 profile_picture_file = process_profile_picture(img_file)
             except Exception:
                 profile_picture_file = None
+
+        # معالجة وثيقة التحقق من الشخصية
+        id_document_file = None
+        if id_document_data.startswith('data:image'):
+            try:
+                import base64
+                from django.core.files.base import ContentFile
+                header, encoded = id_document_data.split(',', 1)
+                img_bytes = base64.b64decode(encoded)
+                id_document_file = ContentFile(img_bytes, name='id_document.jpg')
+            except Exception:
+                id_document_file = None
 
         if getattr(event, 'is_education_admin_locked', False):
             locked_admin_str = (getattr(event, 'locked_education_admin', '') or '').strip()
@@ -230,12 +258,32 @@ def public_screen_view(request):
                 grade=grade,
                 interests=interests,
                 profile_picture=profile_picture_file,
+                national_id=national_id,
+                birth_date=birth_date,
+                age=age,
+                birth_governorate=birth_governorate,
+                gender=gender,
+                id_document=id_document_file,
                 status=StudentRegistration.Status.APPROVED,
                 approved_at=timezone.now()
             )
             if profile_picture_file and not existing_student.profile_picture:
                 existing_student.profile_picture = profile_picture_file
                 existing_student.save(update_fields=['profile_picture'])
+            # نسخ بيانات الرقم القومي لحساب الطالب لو مش موجودة
+            updates = {}
+            if not existing_student.national_id:
+                updates['national_id'] = national_id
+            if not existing_student.birth_date:
+                updates['birth_date'] = birth_date
+            if not existing_student.age:
+                updates['age'] = age
+            if not existing_student.birth_governorate:
+                updates['birth_governorate'] = birth_governorate
+            if not existing_student.gender:
+                updates['gender'] = gender
+            if updates:
+                Student.objects.filter(pk=existing_student.pk).update(**updates)
             
             # إرسال تفاصيل الفعالية والـ QR مباشرة
             subject = f'تأكيد حجز مكان في فعالية {event.name} – EduTech Egypt'
@@ -316,6 +364,12 @@ def public_screen_view(request):
             grade=grade,
             interests=interests,
             profile_picture=profile_picture_file,
+            national_id=national_id,
+            birth_date=birth_date,
+            age=age,
+            birth_governorate=birth_governorate,
+            gender=gender,
+            id_document=id_document_file,
         )
         subject = 'تم استلام طلب التسجيل في فعالية Tech Day – EduTech Egypt'
         text_body = (
