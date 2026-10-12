@@ -29,4 +29,4 @@ ENV SECRET_KEY=build-time-dummy-key-only-for-collectstatic
 
 RUN python manage.py collectstatic --noinput
 
-CMD gunicorn techday.wsgi:application --bind 0.0.0.0:${PORT:-8000} --timeout 180
+CMD python manage.py migrate --noinput && gunicorn techday.wsgi:application --bind 0.0.0.0:${PORT:-8000} --timeout 180
