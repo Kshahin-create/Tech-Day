@@ -97,6 +97,12 @@ class StudentRegistration(models.Model):
     education_admin = models.CharField(max_length=150, verbose_name='الإدارة التعليمية')
     grade = models.CharField(max_length=50, blank=True, verbose_name='السنة الدراسية')
     interests = models.TextField(blank=True, verbose_name='الاهتمامات والهوايات')
+    profile_picture = models.ImageField(
+        upload_to='registration_pictures/',
+        null=True,
+        blank=True,
+        verbose_name='الصورة الشخصية',
+    )
     status = models.CharField(
         max_length=20,
         choices=Status.choices,

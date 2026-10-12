@@ -1766,6 +1766,10 @@ def admin_registration_detail(request, pk):
                     phone_number=registration.phone_number,
                     user=user,
                 )
+            # نسخ الصورة الشخصية من التسجيل إلى حساب الطالب
+            if registration.profile_picture and not student.profile_picture:
+                student.profile_picture = registration.profile_picture
+                student.save(update_fields=['profile_picture'])
             registration.status = StudentRegistration.Status.APPROVED
             registration.student = student
             registration.approved_by = request.user

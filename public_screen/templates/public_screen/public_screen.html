@@ -3,6 +3,7 @@
 {% block title %}شاشة العرض العامة - Tech Day{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
 <style>
     @media (max-width: 640px) {
         .backdrop-blur,
@@ -19,6 +20,10 @@
             animation: none !important;
         }
     }
+    #pp-crop-modal { display: none; }
+    #pp-crop-modal.active { display: flex; }
+    .pp-cropper-container { max-height: 60vh; width: 100%; }
+    .pp-cropper-container img { max-width: 100%; display: block; }
 </style>
 {% endblock %}
 
@@ -478,6 +483,37 @@
                                       class="w-full rounded-2xl bg-slate-950/50 border border-slate-800 px-4 py-3.5 text-sm text-white placeholder:text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 transition-all resize-none"></textarea>
                         </div>
 
+                        <!-- Profile Picture -->
+                        <div class="space-y-3 group">
+                            <label class="text-xs font-bold text-slate-400 group-focus-within:text-cyan-400 transition-colors flex items-center gap-2">
+                                <i data-lucide="camera" class="w-3.5 h-3.5"></i>
+                                الصورة الشخصية <span class="text-rose-400">*</span>
+                            </label>
+                            <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                                <div id="pp-preview-wrap" class="relative w-24 h-24 rounded-2xl bg-slate-950/60 border-2 border-dashed border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
+                                    <i data-lucide="user" class="w-8 h-8 text-slate-600" id="pp-placeholder-icon"></i>
+                                    <img id="pp-preview" class="hidden w-full h-full object-cover" alt="preview">
+                                </div>
+                                <div class="flex-1 space-y-2 w-full">
+                                    <p class="text-[11px] text-slate-500 leading-relaxed">
+                                        لازم تكون صورتك الشخصية واضحة، الوجه باين، وخلفية بيضاء. هيقصها لك النظام تلقائيًا.
+                                    </p>
+                                    <input type="file" id="pp-file" accept="image/*" class="hidden">
+                                    <input type="hidden" id="profile_picture" name="profile_picture">
+                                    <button type="button" id="pp-upload-btn"
+                                            class="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-all border border-slate-700">
+                                        <i data-lucide="upload" class="w-4 h-4"></i>
+                                        <span>اختر صورة</span>
+                                    </button>
+                                    <button type="button" id="pp-remove-btn" class="hidden inline-flex items-center gap-2 px-3 py-2 text-rose-400 hover:text-rose-300 text-xs font-bold transition-colors">
+                                        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                                        <span>حذف</span>
+                                    </button>
+                                    <p id="pp-error" class="hidden text-[11px] text-rose-400 font-semibold"></p>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Submit Button -->
                         <div class="flex flex-col sm:flex-row items-center justify-between gap-6 pt-4">
                             <div class="space-y-1">
@@ -732,6 +768,33 @@
     }
 </style>
 
+<!-- Crop Modal -->
+<div id="pp-crop-modal" class="fixed inset-0 z-[100] items-center justify-center bg-black/80 p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-3xl p-5 w-full max-w-lg shadow-2xl">
+        <h3 class="text-white font-bold text-lg mb-1 flex items-center gap-2">
+            <i data-lucide="crop" class="w-5 h-5 text-cyan-400"></i>
+            قص الصورة الشخصية
+        </h3>
+        <p class="text-slate-400 text-xs mb-4">حرّك واكبر/صغّر الصورة بحيث الوجه واضح في المنتصف، والخلفية بيضاء.</p>
+        <div class="pp-cropper-container rounded-2xl overflow-hidden bg-black mb-4">
+            <img id="pp-crop-image" src="" alt="">
+        </div>
+        <div id="pp-bg-warning" class="hidden mb-3 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/40 text-amber-300 text-xs">
+            <i data-lucide="alert-triangle" class="w-4 h-4 inline ml-1"></i>
+            الخلفية مش بيضاء تمامًا. يفضّل تستخدم صورة بخلفية بيضاء.
+        </div>
+        <div class="flex gap-3">
+            <button type="button" id="pp-crop-cancel" class="flex-1 px-4 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-sm font-bold transition-all">
+                إلغاء
+            </button>
+            <button type="button" id="pp-crop-confirm" class="flex-1 px-4 py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-sm font-bold transition-all">
+                تأكيد القص
+            </button>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
 <script>
     function updateClock() {
         var element = document.getElementById("clock");
@@ -742,5 +805,166 @@
         element.textContent = hours + ":" + minutes;
     }
     setInterval(updateClock, 1000 * 30);
+
+    (function() {
+        var ppFile = document.getElementById('pp-file');
+        var ppUploadBtn = document.getElementById('pp-upload-btn');
+        var ppRemoveBtn = document.getElementById('pp-remove-btn');
+        var ppPreview = document.getElementById('pp-preview');
+        var ppPlaceholderIcon = document.getElementById('pp-placeholder-icon');
+        var ppHidden = document.getElementById('profile_picture');
+        var ppError = document.getElementById('pp-error');
+        var ppModal = document.getElementById('pp-crop-modal');
+        var ppCropImage = document.getElementById('pp-crop-image');
+        var ppCropCancel = document.getElementById('pp-crop-cancel');
+        var ppCropConfirm = document.getElementById('pp-crop-confirm');
+        var ppBgWarning = document.getElementById('pp-bg-warning');
+        var form = document.querySelector('form[method="post"]');
+        var cropper = null;
+
+        function showError(msg) {
+            ppError.textContent = msg;
+            ppError.classList.remove('hidden');
+        }
+        function clearError() {
+            ppError.classList.add('hidden');
+        }
+
+        ppUploadBtn.addEventListener('click', function() { ppFile.click(); });
+
+        ppFile.addEventListener('change', function(e) {
+            var file = e.target.files[0];
+            if (!file) return;
+            if (!file.type.startsWith('image/')) {
+                showError('الملف المختار مش صورة.');
+                return;
+            }
+            if (file.size > 10 * 1024 * 1024) {
+                showError('حجم الصورة كبير جدًا (أقصى حد 10 ميجا).');
+                return;
+            }
+            clearError();
+            var reader = new FileReader();
+            reader.onload = function(ev) {
+                ppCropImage.src = ev.target.result;
+                ppModal.classList.add('active');
+                if (cropper) { cropper.destroy(); cropper = null; }
+                cropper = new Cropper(ppCropImage, {
+                    aspectRatio: 1,
+                    viewMode: 1,
+                    dragMode: 'move',
+                    autoCropArea: 0.8,
+                    background: true,
+                    responsive: true,
+                    guides: true,
+                    center: true,
+                    zoomable: true,
+                    zoomOnWheel: true,
+                    zoomOnTouch: true,
+                    movable: true,
+                    scalable: false,
+                    rotatable: true,
+                });
+                ppBgWarning.classList.add('hidden');
+            };
+            reader.readAsDataURL(file);
+        });
+
+        ppCropCancel.addEventListener('click', function() {
+            ppModal.classList.remove('active');
+            if (cropper) { cropper.destroy(); cropper = null; }
+            ppFile.value = '';
+        });
+
+        function analyzeWhiteBackground(dataUrl, callback) {
+            var img = new Image();
+            img.onload = function() {
+                var canvas = document.createElement('canvas');
+                var w = Math.min(img.width, 400);
+                var h = Math.min(img.height, 400);
+                canvas.width = w; canvas.height = h;
+                var ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, w, h);
+                var sampleSize = Math.max(3, Math.floor(Math.min(w, h) * 0.06));
+                var samples = [];
+                function isWhite(r, g, b) {
+                    return r >= 230 && g >= 230 && b >= 230 && Math.abs(r - g) <= 25 && Math.abs(g - b) <= 25;
+                }
+                var points = [];
+                for (var i = 0; i < sampleSize; i++) {
+                    var t = (i + 1) / (sampleSize + 1);
+                    points.push([Math.floor(w * t), 0]);
+                    points.push([Math.floor(w * t), h - 1]);
+                    points.push([0, Math.floor(h * t)]);
+                    points.push([w - 1, Math.floor(h * t)]);
+                }
+                var whiteCount = 0;
+                points.forEach(function(p) {
+                    var d = ctx.getImageData(p[0], p[1], 1, 1).data;
+                    if (isWhite(d[0], d[1], d[2])) whiteCount++;
+                });
+                var ratio = whiteCount / points.length;
+                callback(ratio);
+            };
+            img.src = dataUrl;
+        }
+
+        ppCropConfirm.addEventListener('click', function() {
+            if (!cropper) return;
+            var canvas = cropper.getCroppedCanvas({
+                width: 512,
+                height: 512,
+                imageSmoothingEnabled: true,
+                imageSmoothingQuality: 'high',
+            });
+            if (!canvas) {
+                showError('تعذّر قص الصورة، حاول مرة أخرى.');
+                return;
+            }
+            var dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+            analyzeWhiteBackground(dataUrl, function(ratio) {
+                if (ratio < 0.3) {
+                    ppBgWarning.classList.remove('hidden');
+                    if (!confirm('الخلفية مش بيضاء تمامًا. هل تريد المتابعة مع الصورة الحالية؟')) {
+                        return;
+                    }
+                } else {
+                    ppBgWarning.classList.add('hidden');
+                }
+                ppHidden.value = dataUrl;
+                ppPreview.src = dataUrl;
+                ppPreview.classList.remove('hidden');
+                ppPlaceholderIcon.classList.add('hidden');
+                ppRemoveBtn.classList.remove('hidden');
+                ppUploadBtn.querySelector('span').textContent = 'تغيير الصورة';
+                ppModal.classList.remove('active');
+                if (cropper) { cropper.destroy(); cropper = null; }
+                ppFile.value = '';
+                clearError();
+            });
+        });
+
+        ppRemoveBtn.addEventListener('click', function() {
+            ppHidden.value = '';
+            ppPreview.src = '';
+            ppPreview.classList.add('hidden');
+            ppPlaceholderIcon.classList.remove('hidden');
+            ppRemoveBtn.classList.add('hidden');
+            ppUploadBtn.querySelector('span').textContent = 'اختر صورة';
+            ppFile.value = '';
+            clearError();
+        });
+
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                if (!ppHidden.value) {
+                    e.preventDefault();
+                    showError('لازم ترفع صورة شخصية عشان تقدر ترسل الطلب.');
+                    ppUploadBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    return false;
+                }
+            });
+        }
+    })();
 </script>
 {% endblock %}

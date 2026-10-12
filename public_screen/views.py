@@ -18,6 +18,7 @@ from techday.utils import send_email_async, get_styled_email_html, send_registra
 from attendance.models import Attendance
 from groups.models import Group
 from students.models import Student, StudentRegistration
+from students.utils import process_profile_picture
 from workshops.models import Workshop, WorkshopSession, WorkshopFeedback
 from dashboard.models import Event, AdminLog, AppVersion
 from .models import PublicForm, PublicFormField, PublicFormSubmission, PublicFormAnswer
@@ -149,9 +150,23 @@ def public_screen_view(request):
         education_admin = (request.POST.get('education_admin') or '').strip()
         grade = (request.POST.get('grade') or '').strip()
         interests = (request.POST.get('interests') or '').strip()
+        profile_picture_data = (request.POST.get('profile_picture') or '').strip()
         if not full_name_ar or not full_name_en or not email or not phone_number or not school or not education_admin or not grade:
             messages.error(request, 'يرجى ملء جميع الحقول المطلوبة في نموذج التسجيل.')
             return redirect('public_screen:public_screen')
+
+        # معالجة الصورة الشخصية (base64 من Cropper.js)
+        profile_picture_file = None
+        if profile_picture_data.startswith('data:image'):
+            try:
+                import base64
+                from django.core.files.base import ContentFile
+                header, encoded = profile_picture_data.split(',', 1)
+                img_bytes = base64.b64decode(encoded)
+                img_file = ContentFile(img_bytes, name='profile_cropped.jpg')
+                profile_picture_file = process_profile_picture(img_file)
+            except Exception:
+                profile_picture_file = None
 
         if getattr(event, 'is_education_admin_locked', False):
             locked_admin_str = (getattr(event, 'locked_education_admin', '') or '').strip()
@@ -195,9 +210,13 @@ def public_screen_view(request):
                 education_admin=education_admin,
                 grade=grade,
                 interests=interests,
+                profile_picture=profile_picture_file,
                 status=StudentRegistration.Status.APPROVED,
                 approved_at=timezone.now()
             )
+            if profile_picture_file and not existing_student.profile_picture:
+                existing_student.profile_picture = profile_picture_file
+                existing_student.save(update_fields=['profile_picture'])
             
             # إرسال تفاصيل الفعالية والـ QR مباشرة
             subject = f'تأكيد حجز مكان في فعالية {event.name} – EduTech Egypt'
@@ -277,6 +296,7 @@ def public_screen_view(request):
             education_admin=education_admin,
             grade=grade,
             interests=interests,
+            profile_picture=profile_picture_file,
         )
         subject = 'تم استلام طلب التسجيل في فعالية Tech Day – EduTech Egypt'
         text_body = (

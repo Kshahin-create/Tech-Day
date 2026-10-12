@@ -659,6 +659,9 @@ class StudentRegistrationViewSet(viewsets.ModelViewSet):
                 'grade': reg.grade,
             }
         )
+        if reg.profile_picture and not student.profile_picture:
+            student.profile_picture = reg.profile_picture
+            student.save(update_fields=['profile_picture'])
         
         # 2. Create User account if not exists
         if not student.user:
