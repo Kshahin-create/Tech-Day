@@ -316,26 +316,15 @@ def scan_qr(request):
                         if (next_start_dt - now_dt).total_seconds() <= 45 * 60:
                             session = next_session
 
-        # منع تسجيل الحضور خارج وقت الورشة للمشرفين والمتطوعين (إلا إذا كان الطالب لم يسجل دخول للفعالية بعد)
+        # السماح للمشرفين والمتطوعين بتسجيل الحضور في أي وقت (بدون قيود زمنية)
+        # إذا لم يتم العثور على جلسة حالية، يتم تسجيل دخول الفعالية فقط بدون نقاط الجلسة
         is_admin = request.user.is_superuser or (hasattr(request.user, 'is_admin') and request.user.is_admin())
-        
-        # إذا لم يتم العثور على جلسة، وكان المستخدم ليس أدمن والطالب مسجل بالفعل بالفعالية، نمنع التسجيل
-        if not session and not is_admin:
-            stats = StudentEventStats.objects.filter(student=student, event=event).first()
-            if stats and stats.checked_in:
-                return JsonResponse(
-                    {
-                        'success': False,
-                        'message': 'عذراً، لا توجد ورشة نشطة أو قريبة حالياً لمجموعة هذا الطالب، وقد تم تسجيل حضوره بالفعالية مسبقاً.',
-                    }
-                )
-            # إذا لم يكن قد سجل، سنسمح للمتطوع بتسجيل دخوله العام للفعالية (عبر استكمال الكود أدناه)
 
         # إذا كان أدمن ولم يتم العثور على جلسة حالية، نحاول العثور على أقرب جلسة للطالب في هذه الفعالية
         if not session and is_admin and student.group and student.group.event == event:
             session = WorkshopSession.objects.filter(
                 group=student.group
-            ).order_by('start_time').first() # نأخذ أول جلسة كمثال أو يمكن تحسينها لاحقاً
+            ).order_by('start_time').first()
 
         try:
             workshop_title, is_event_already_checked_in, points_awarded, is_session_already_registered, new_badges = _register_attendance_for_session(student, session, status_value, event=event)
@@ -420,17 +409,9 @@ def scan_session_qr(request, session_id):
                 }
             )
             
-        # التحقق من الوقت للجلسة الحالية
+        # السماح بتسجيل الحضور في أي وقت (لا قيود زمنية للجلسات)
         now = timezone.localtime()
-        is_admin = request.user.is_superuser or (hasattr(request.user, 'is_admin') and request.user.is_admin())
-        if not is_admin and (now.time() < session.start_time or now.time() > session.end_time):
-            return JsonResponse(
-                {
-                    'success': False,
-                    'message': f'لا يمكن تسجيل الحضور خارج وقت الجلسة ({session.start_time.strftime("%H:%M")} - {session.end_time.strftime("%H:%M")}).',
-                }
-            )
-
+        
         if not student.group or student.group_id != session.group_id:
             return JsonResponse(
                 {

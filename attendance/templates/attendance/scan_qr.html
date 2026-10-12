@@ -265,6 +265,7 @@
     var lastCodeTime = 0;
     var html5QrCode = null;
     var currentCameraId = localStorage.getItem('preferredCameraId');
+    var scannerPaused = false;
 
     function updateScannerUI(status, colorClass, text) {
         const indicator = document.getElementById("scanner-indicator");
@@ -274,6 +275,20 @@
         indicator.className = `flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 text-[11px] font-bold ${colorClass} transition-all`;
         dot.className = `w-2 h-2 rounded-full ${colorClass.replace('text-', 'bg-')} ${status === 'scanning' ? 'animate-pulse' : ''}`;
         textEl.textContent = text;
+    }
+
+    function pauseScanner() {
+        if (html5QrCode && !scannerPaused) {
+            try { html5QrCode.pause(); } catch(e) {}
+            scannerPaused = true;
+        }
+    }
+
+    function resumeScanner() {
+        if (html5QrCode && scannerPaused) {
+            try { html5QrCode.resume(); } catch(e) {}
+            scannerPaused = false;
+        }
     }
 
     function showCard(cardId) {
@@ -328,6 +343,7 @@
         if (!studentId || isSending) return;
         
         isSending = true;
+        pauseScanner();
         updateScannerUI('sending', 'text-amber-400', 'جاري الإرسال...');
         
         const manualButton = document.getElementById("manual-submit");
@@ -358,6 +374,11 @@
         .finally(() => {
             isSending = false;
             manualButton.disabled = false;
+            setTimeout(() => {
+                if (document.visibilityState === 'visible') {
+                    resumeScanner();
+                }
+            }, 800);
         });
     }
 
@@ -381,9 +402,10 @@
             
             // إنشاء مثيل جديد دائماً لضمان النظافة عند التبديل
             html5QrCode = new Html5Qrcode("reader");
+            scannerPaused = false;
             
             const config = { 
-                fps: 20, 
+                fps: 10, 
                 qrbox: { width: 250, height: 250 },
                 aspectRatio: 1.0
             };
@@ -546,6 +568,21 @@
          startScanner(currentCameraId);
          if (window.lucide) lucide.createIcons();
      });
+
+    // إيقاف الكاميرا عند إخفاء الصفحة وإعادة تشغيلها عند العودة (يمنع تجميد الكاميرا)
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+            if (html5QrCode && !scannerPaused) {
+                try { html5QrCode.pause(); } catch(e) {}
+                scannerPaused = true;
+            }
+        } else if (document.visibilityState === 'visible') {
+            if (html5QrCode && scannerPaused && !isSending) {
+                try { html5QrCode.resume(); } catch(e) {}
+                scannerPaused = false;
+            }
+        }
+    });
  </script>
 
 <style>
