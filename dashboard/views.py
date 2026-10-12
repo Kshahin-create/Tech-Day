@@ -918,7 +918,7 @@ def admin_students_list(request):
             removed_at__isnull=True,
         )
         students_qs = students_qs.annotate(
-            is_registered_for_current_event=Exists(reg_subq),
+            is_registered_for_event=Exists(reg_subq),
         )
 
     students_qs = students_qs.order_by('name')

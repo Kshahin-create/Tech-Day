@@ -182,7 +182,7 @@
                                         <i data-lucide="send" class="w-4 h-4"></i>
                                     </button>
                                 </form>
-                                {% if current_event and not student.is_registered_for_current_event %}
+                                {% if current_event and not student.is_registered_for_event %}
                                     <form method="post" action="{% url 'dashboard:admin_student_add_to_current_event' student.pk %}" class="contents">
                                         {% csrf_token %}
                                         <button type="submit" title="تسجيل في الفعالية الحالية"
