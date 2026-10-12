@@ -13,3 +13,4 @@ fcm-django
 django-storages
 boto3
 Pillow
+requests

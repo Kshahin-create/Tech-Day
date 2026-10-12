@@ -11,6 +11,7 @@ urlpatterns = [
     path('certificate/<str:student_id>/', views.student_certificate, name='certificate'),
     path('تحديث-رقم-الهاتف/', views.update_phone_view, name='update_phone'),
     path('تحديث-الصورة-الشخصية/', views.update_profile_picture, name='update_profile_picture'),
+    path('<int:pk>/صورة/', views.student_profile_picture_proxy, name='profile_picture_proxy'),
     path('mark-badges-seen/', views.mark_badges_seen, name='mark_badges_seen'),
     path('workshop-note/submit/', views.submit_workshop_note, name='submit_workshop_note'),
     path('submit-support-request/', views.student_submit_support_request, name='submit_support_request'),

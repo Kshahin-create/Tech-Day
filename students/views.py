@@ -1,4 +1,5 @@
 import io
+import requests
 from types import SimpleNamespace
 from django.conf import settings
 from django.contrib import messages
@@ -459,6 +460,26 @@ def update_profile_picture(request):
         return redirect('students:detail', pk=student.pk)
 
     return redirect('students:detail', pk=student.pk)
+
+
+def student_profile_picture_proxy(request, pk):
+    student = get_object_or_404(Student, pk=pk)
+    if not student.profile_picture:
+        return HttpResponse(status=404)
+
+    url = student.profile_picture.url
+    if url.startswith('/'):
+        from django.conf import settings
+        url = request.build_absolute_uri(url)
+
+    try:
+        resp = requests.get(url, timeout=15)
+        resp.raise_for_status()
+    except Exception:
+        return HttpResponse(status=502)
+
+    content_type = resp.headers.get('Content-Type', 'image/jpeg')
+    return HttpResponse(resp.content, content_type=content_type)
 
 
 def student_verify(request, identifier):

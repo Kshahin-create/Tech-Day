@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load workshop_tags %}
+{% load static %}
 
 {% block title %}لوحة الطالب - {{ student.name }}{% endblock %}
 
@@ -470,19 +471,12 @@
                 <div class="relative rounded-[2.8rem] bg-slate-950/90 backdrop-blur-xl p-6 border border-slate-800">
                     <!-- Card Header -->
                     <div class="flex items-center justify-between mb-5">
-                        <div class="flex items-center gap-2">
-                            <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-cyan-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/30">
-                                <i data-lucide="cpu" class="w-4 h-4 text-white"></i>
-                            </div>
-                            <div>
-                                <div class="text-[8px] font-black text-slate-500 uppercase tracking-[0.25em]">Tech Day</div>
-                                <div class="text-[10px] font-black text-cyan-400 uppercase tracking-widest">EDU-TECH EGYPT</div>
-                            </div>
+                        <img src="{% static 'Ministry_of_Education_(Egypt)_logo.png' %}" alt="وزارة التربية والتعليم" class="w-10 h-10 object-contain">
+                        <div class="text-center">
+                            <div class="text-[8px] font-black text-slate-500 uppercase tracking-[0.25em]">Tech Day</div>
+                            <div class="text-[10px] font-black text-cyan-400 uppercase tracking-widest">EDU-TECH EGYPT</div>
                         </div>
-                        <div class="text-left">
-                            <div class="text-[8px] font-black text-slate-600 uppercase tracking-widest">ID Card</div>
-                            <div class="text-[8px] font-bold text-slate-500">{{ student.created_at|date:"Y" }}</div>
-                        </div>
+                        <img src="{% static 'edutech-logo.png' %}" alt="EDU-TECH" class="w-10 h-10 object-contain rounded-full">
                     </div>
 
                     <!-- Profile Picture -->
@@ -635,6 +629,69 @@
                     }
                 });
             </script>
+
+            <!-- Printable ID Card (off-screen, used for print & PDF capture) -->
+            <div id="printable-id" style="position: fixed; left: -9999px; top: 0; width: 54mm; height: 85.6mm; background: #ffffff; border-radius: 8mm; overflow: hidden; z-index: -1; font-family: 'Segoe UI', Tahoma, sans-serif;">
+                <!-- Top color band -->
+                <div style="height: 14mm; background: linear-gradient(135deg, #0e7490 0%, #4f46e5 100%); display: flex; align-items: center; justify-content: space-between; padding: 0 4mm;">
+                    <img src="{% static 'Ministry_of_Education_(Egypt)_logo.png' %}" alt="وزارة التربية والتعليم" style="height: 11mm; width: auto; object-fit: contain;">
+                    <img src="{% static 'edutech-logo.png' %}" alt="EDU-TECH" style="height: 11mm; width: auto; object-fit: contain; border-radius: 50%;">
+                </div>
+
+                <!-- Content -->
+                <div style="padding: 4mm 5mm; display: flex; flex-direction: column; align-items: center;">
+                    <!-- Title -->
+                    <div style="text-align: center; margin-bottom: 3mm;">
+                        <div style="font-size: 3.2mm; font-weight: 900; color: #0e7490; letter-spacing: 0.5mm; text-transform: uppercase;">Tech Day — EDU-TECH EGYPT</div>
+                        <div style="font-size: 2.6mm; font-weight: 700; color: #64748b; margin-top: 0.5mm;">بطاقة هوية المشارك | Participant ID</div>
+                    </div>
+
+                    <!-- Photo -->
+                    <div style="width: 26mm; height: 26mm; border-radius: 50%; overflow: hidden; border: 1mm solid #e2e8f0; background: #f1f5f9; display: flex; align-items: center; justify-content: center; margin-bottom: 3mm;">
+                        {% if student.profile_picture %}
+                        <img src="{% url 'students:profile_picture_proxy' student.pk %}" alt="{{ student.name }}" style="width: 100%; height: 100%; object-fit: cover;">
+                        {% else %}
+                        <svg width="14mm" height="14mm" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/></svg>
+                        {% endif %}
+                    </div>
+
+                    <!-- Name -->
+                    <div style="font-size: 4.2mm; font-weight: 900; color: #0f172a; text-align: center; line-height: 1.2; margin-bottom: 1.5mm;">{{ student.name }}</div>
+
+                    <!-- Group badge -->
+                    {% if student.group %}
+                    <div style="display: inline-flex; align-items: center; gap: 1.5mm; padding: 1mm 3mm; border-radius: 4mm; font-size: 2.6mm; font-weight: 800; margin-bottom: 3mm; background: {{ student.group.color }}1a; color: {{ student.group.color }}; border: 0.3mm solid {{ student.group.color }}40;">
+                        <span style="width: 1.5mm; height: 1.5mm; border-radius: 50%; background: {{ student.group.color }};"></span>
+                        {{ student.group.name }}
+                    </div>
+                    {% else %}
+                    <div style="height: 5mm;"></div>
+                    {% endif %}
+
+                    <!-- Info row -->
+                    <div style="display: flex; gap: 2mm; width: 100%; margin-bottom: 3mm;">
+                        <div style="flex: 1; background: #f8fafc; border-radius: 2mm; padding: 1.5mm; text-align: center; border: 0.2mm solid #e2e8f0;">
+                            <div style="font-size: 2mm; font-weight: 700; color: #94a3b8; text-transform: uppercase;">الصف</div>
+                            <div style="font-size: 2.8mm; font-weight: 800; color: #334155; margin-top: 0.5mm;">{{ student.grade|default:"-" }}</div>
+                        </div>
+                        <div style="flex: 1; background: #f8fafc; border-radius: 2mm; padding: 1.5mm; text-align: center; border: 0.2mm solid #e2e8f0;">
+                            <div style="font-size: 2mm; font-weight: 700; color: #94a3b8; text-transform: uppercase;">الإدارة</div>
+                            <div style="font-size: 2.6mm; font-weight: 800; color: #334155; margin-top: 0.5mm; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ student.education_admin|default:"-" }}</div>
+                        </div>
+                    </div>
+
+                    <!-- QR + ID -->
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 1.5mm;">
+                        <div id="printable-qr" style="padding: 1.5mm; background: #ffffff; border-radius: 2mm; border: 0.3mm solid #e2e8f0;"></div>
+                        <div style="font-size: 2.6mm; font-weight: 800; color: #0e7490; font-family: monospace; letter-spacing: 0.3mm;">ID: {{ student.student_id }}</div>
+                    </div>
+                </div>
+
+                <!-- Bottom band -->
+                <div style="position: absolute; bottom: 0; left: 0; right: 0; height: 5mm; background: linear-gradient(135deg, #0e7490 0%, #4f46e5 100%); display: flex; align-items: center; justify-content: center;">
+                    <div style="font-size: 2mm; font-weight: 700; color: #ffffff; letter-spacing: 0.5mm; text-transform: uppercase;">الفريق التقني بالقليوبية • {{ student.created_at|date:"Y" }}</div>
+                </div>
+            </div>
 
             <!-- Achievements (Badge Showcase) -->
             {% if student_badges %}
@@ -990,6 +1047,8 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
     // Modal Logic
     function openNoteModal(id, title, content) {
@@ -1033,14 +1092,49 @@
         });
     }
 
-    // Download QR Code
-    function downloadQR() {
-        const qrImg = document.querySelector('#qrcode img');
-        if (qrImg) {
-            const link = document.createElement('a');
-            link.href = qrImg.src;
-            link.download = 'TechDay-Access-Pass-{{ student.student_id }}.png';
-            link.click();
+    // Download ID Card as high-quality PDF
+    async function downloadQR() {
+        const card = document.getElementById('printable-id');
+        if (!card) return;
+
+        const btn = event?.target?.closest('button');
+        const origText = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> جاري التحميل...';
+            lucide.createIcons();
+        }
+
+        try {
+            const canvas = await html2canvas(card, {
+                scale: 4,
+                useCORS: true,
+                backgroundColor: '#ffffff',
+                logging: false
+            });
+
+            const imgData = canvas.toDataURL('image/jpeg', 0.95);
+            const { jsPDF } = window.jspdf;
+
+            const cardWidthMm = 54;
+            const cardHeightMm = 85.6;
+            const pdf = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: [cardWidthMm, cardHeightMm]
+            });
+
+            pdf.addImage(imgData, 'JPEG', 0, 0, cardWidthMm, cardHeightMm, undefined, 'FAST');
+            pdf.save(`TechDay-ID-${{ student.student_id }}.pdf`);
+        } catch (err) {
+            console.error('PDF generation failed:', err);
+            alert('حدث خطأ أثناء توليد البطاقة. حاول مرة أخرى.');
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = origText;
+                lucide.createIcons();
+            }
         }
     }
 
@@ -1072,6 +1166,17 @@
             text: "{{ student.student_id }}",
             width: 180, height: 180,
             colorDark: "#020617", colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.H
+        });
+    }
+
+    // Printable QR Code (higher resolution)
+    var printableQr = document.getElementById('printable-qr');
+    if (printableQr) {
+        new QRCode(printableQr, {
+            text: "{{ student.student_id }}",
+            width: 220, height: 220,
+            colorDark: "#0f172a", colorLight: "#ffffff",
             correctLevel: QRCode.CorrectLevel.H
         });
     }
@@ -1148,5 +1253,23 @@
         50% { opacity: 0.7; }
     }
     .animate-pulse-soft { animation: pulse-soft 3s infinite; }
+
+    /* Print styles — show only the ID card */
+    @media print {
+        body * { visibility: hidden !important; }
+        #printable-id, #printable-id * { visibility: visible !important; }
+        #printable-id {
+            position: fixed !important;
+            left: 50% !important;
+            top: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            z-index: 9999 !important;
+            box-shadow: none !important;
+        }
+        @page {
+            size: 70mm 100mm;
+            margin: 8mm;
+        }
+    }
 </style>
 {% endblock %}
