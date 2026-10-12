@@ -24,6 +24,12 @@ def require_attendance_staff(user):
     )
 
 
+def require_supervisor_or_admin(user):
+    return user.is_authenticated and (
+        user.is_admin() or user.is_supervisor()
+    )
+
+
 @login_required
 def volunteer_dashboard(request):
     if not require_attendance_staff(request.user):
@@ -238,6 +244,10 @@ def scan_qr(request):
         student_id = request.POST.get('student_id')
         status_value = request.POST.get('status') or Attendance.Status.PRESENT
         
+        # المتطوع لا يمكنه تغيير الحالة إلا إلى "حاضر" فقط (لا يخصم ولا يسجل تأخير/غياب)
+        if request.user.is_volunteer():
+            status_value = Attendance.Status.PRESENT
+        
         student = Student.objects.filter(student_id=student_id).first()
         if not student:
             return JsonResponse(
@@ -381,6 +391,10 @@ def scan_session_qr(request, session_id):
         student_id = request.POST.get('student_id')
         status_value = request.POST.get('status') or Attendance.Status.PRESENT
         
+        # المتطوع لا يمكنه تغيير الحالة إلا إلى "حاضر" فقط (لا يخصم ولا يسجل تأخير/غياب)
+        if request.user.is_volunteer():
+            status_value = Attendance.Status.PRESENT
+        
         student = Student.objects.filter(student_id=student_id).first()
         if not student:
             return JsonResponse(
@@ -478,8 +492,9 @@ def scan_session_qr(request, session_id):
 def mark_all_group_present(request, session_id):
     """
     تسجيل حضور جميع طلاب المجموعة (الذين سجلوا حضوراً للفعالية بالفعل) في جلسة محددة بضغطة واحدة.
+    متاح للمشرفين والأدمن فقط (لا للمتطوعين).
     """
-    if not require_attendance_staff(request.user):
+    if not require_supervisor_or_admin(request.user):
         return HttpResponseForbidden()
     
     if request.method != 'POST':
@@ -672,15 +687,27 @@ def volunteer_schedule(request):
 
 @login_required
 def supervisor_award_points(request):
-    if not require_attendance_staff(request.user):
+    if not require_supervisor_or_admin(request.user):
         return HttpResponseForbidden()
     
     event = Event.get_current()
+    MAX_POINTS = 20
     
     if request.method == 'POST':
         student_id = request.POST.get('student_id')
-        points = int(request.POST.get('points', 0))
+        try:
+            points = int(request.POST.get('points', 0))
+        except (ValueError, TypeError):
+            points = 0
         reason = request.POST.get('reason', 'مشاركة متميزة')
+        
+        if points == 0:
+            messages.error(request, 'الرجاء إدخال عدد نقاط صحيح.')
+            return redirect('attendance:award_points')
+        
+        if abs(points) > MAX_POINTS:
+            messages.error(request, f'الحد الأقصى للنقاط في المرة الواحدة هو {MAX_POINTS} نقطة.')
+            return redirect('attendance:award_points')
         
         student = get_object_or_404(Student, student_id=student_id)
         
@@ -696,46 +723,46 @@ def supervisor_award_points(request):
             messages.error(request, 'عذراً، هذا الطالب غير مسجل في هذه الفعالية أو لم تتم الموافقة على طلبه بعد.')
             return redirect('attendance:award_points')
             
-        if points != 0:
-            student.points += points
-            student.save(update_fields=['points'])
-            
-            # تحديث النقاط في إحصائيات الفعالية الحالية
-            stats = StudentEventStats.objects.filter(student=student, event=event).first()
-            if not stats:
-                stats = StudentEventStats.objects.create(student=student, event=event)
-            stats.points += points
-            stats.save(update_fields=['points'])
-            
-            # إضافة نقاط للمجموعة فقط إذا كان مسموحاً بذلك في الإعدادات وللطلبة في الفعالية الحالية
-            group_points_awarded = 0
-            if student.group and student.group.event == event and event.allow_group_points:
-                student.group.points += points
-                student.group.save(update_fields=['points'])
-                group_points_awarded = points
-            
-            AdminLog.objects.create(
-                action=f'تم منح {points} نقطة للطالب {student.name} بواسطة {request.user.username}. السبب: {reason}',
-                event=event
-            )
-            
-            msg = f'تم إضافة {points} نقطة للطالب {student.name} بنجاح.'
-            if student.group and student.group.event == event:
-                if event.allow_group_points:
-                    msg += f' وتم إضافة {points} نقطة لمجموعة {student.group.code}.'
-                else:
-                    msg += ' (لم يتم إضافة نقاط للمجموعة لأن الميزة مغلقة حالياً).'
-            elif student.group:
-                msg += ' (لم يتم إضافة نقاط للمجموعة لأن الطالب غير مسجل في مجموعة تابعة لهذه الفعالية).'
-            
-            messages.success(request, msg)
+        student.points += points
+        student.save(update_fields=['points'])
+        
+        # تحديث النقاط في إحصائيات الفعالية الحالية
+        stats = StudentEventStats.objects.filter(student=student, event=event).first()
+        if not stats:
+            stats = StudentEventStats.objects.create(student=student, event=event)
+        stats.points += points
+        stats.save(update_fields=['points'])
+        
+        # إضافة نقاط للمجموعة فقط إذا كان مسموحاً بذلك في الإعدادات وللطلبة في الفعالية الحالية
+        group_points_awarded = 0
+        if student.group and student.group.event == event and event.allow_group_points:
+            student.group.points += points
+            student.group.save(update_fields=['points'])
+            group_points_awarded = points
+        
+        AdminLog.objects.create(
+            action=f'تم منح {points} نقطة للطالب {student.name} بواسطة {request.user.username}. السبب: {reason}',
+            event=event
+        )
+        
+        msg = f'تم إضافة {points} نقطة للطالب {student.name} بنجاح.'
+        if student.group and student.group.event == event:
+            if event.allow_group_points:
+                msg += f' وتم إضافة {points} نقطة لمجموعة {student.group.code}.'
+            else:
+                msg += ' (لم يتم إضافة نقاط للمجموعة لأن الميزة مغلقة حالياً).'
+        elif student.group:
+            msg += ' (لم يتم إضافة نقاط للمجموعة لأن الطالب غير مسجل في مجموعة تابعة لهذه الفعالية).'
+        
+        messages.success(request, msg)
         
         return redirect('attendance:award_points')
     
     recent_awards = AdminLog.objects.filter(action__contains='نقطة للطالب').order_by('-created_at')[:10]
     return render(request, 'attendance/award_points.html', {
         'recent_awards': recent_awards,
-        'allow_group_points': event.allow_group_points
+        'allow_group_points': event.allow_group_points,
+        'max_points': MAX_POINTS,
     })
 
 

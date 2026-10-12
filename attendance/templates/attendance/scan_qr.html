@@ -29,6 +29,7 @@
                 </div>
             </div>
         </div>
+        {% if not request.user.is_volunteer %}
         <form action="{% url 'attendance:mark_all_group_present' session.id %}" method="POST" onsubmit="return confirm('هل أنت متأكد من تسجيل حضور {{ checked_in_not_present_count }} طالب من مجموعة ({{ session.group.code }})؟');" class="shrink-0">
             {% csrf_token %}
             <button type="submit"
@@ -38,6 +39,7 @@
                 تسجيل حضور الكل ({{ checked_in_not_present_count }})
             </button>
         </form>
+        {% endif %}
     </div>
     {% endif %}
 
