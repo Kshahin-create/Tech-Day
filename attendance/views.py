@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db.models import Q
 from django.http import JsonResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, render, redirect
 from django.urls import reverse
@@ -786,7 +787,9 @@ def search_students(request):
     
     event = Event.get_current()
     students = Student.objects.filter(
-        name__icontains=query,
+        Q(name__icontains=query)
+        | Q(student_id__icontains=query)
+        | Q(national_id__icontains=query),
         registrations__event=event,
         registrations__status=StudentRegistration.Status.APPROVED,
         registrations__removed_at__isnull=True,
@@ -812,9 +815,12 @@ def volunteer_student_lookup(request):
 
     student_id = (request.GET.get('student_id') or request.POST.get('student_id') or '').strip()
     if not student_id:
-        return JsonResponse({'success': False, 'message': 'يرجى إدخال رقم الطالب.'})
+        return JsonResponse({'success': False, 'message': 'يرجى إدخال رقم الطالب أو الرقم القومي.'})
 
-    student = Student.objects.filter(student_id=student_id).first()
+    # البحث برقم الطالب أو الرقم القومي
+    student = Student.objects.filter(
+        Q(student_id=student_id) | Q(national_id=student_id)
+    ).first()
     if not student:
         return JsonResponse({'success': False, 'message': 'لم يتم العثور على طالب بهذا الرقم.'})
 

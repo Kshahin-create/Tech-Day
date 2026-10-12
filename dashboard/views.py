@@ -935,6 +935,7 @@ def admin_students_list(request):
         students_qs = students_qs.filter(
             Q(name__icontains=q)
             | Q(student_id__icontains=q)
+            | Q(national_id__icontains=q)
             | Q(school__icontains=q)
             | Q(email__icontains=q)
             | Q(phone_number__icontains=q)
@@ -995,6 +996,7 @@ def admin_smart_search(request):
         results = Student.objects.filter(
             Q(name__icontains=query) |
             Q(student_id__icontains=query) |
+            Q(national_id__icontains=query) |
             Q(phone_number__icontains=query) |
             Q(email__icontains=query) |
             Q(school__icontains=query) |
@@ -1050,6 +1052,7 @@ def admin_current_event_students(request):
         students_qs = students_qs.filter(
             Q(name__icontains=q)
             | Q(student_id__icontains=q)
+            | Q(national_id__icontains=q)
             | Q(school__icontains=q)
             | Q(email__icontains=q)
             | Q(phone_number__icontains=q)
@@ -1587,6 +1590,8 @@ def admin_registrations_list(request):
             | Q(email__icontains=q)
             | Q(phone_number__icontains=q)
             | Q(school__icontains=q)
+            | Q(national_id__icontains=q)
+            | Q(student__student_id__icontains=q)
         )
     if status in {StudentRegistration.Status.PENDING, StudentRegistration.Status.APPROVED, StudentRegistration.Status.REJECTED}:
         registrations = registrations.filter(status=status)
