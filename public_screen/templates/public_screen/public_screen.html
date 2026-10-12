@@ -377,7 +377,9 @@
                                     <i data-lucide="user" class="w-3.5 h-3.5"></i>
                                     الاسم الكامل (عربي)
                                 </label>
-                                <input id="full_name_ar" name="full_name_ar" type="text" required placeholder="مثال: محمد أحمد علي"
+                                <input id="full_name_ar" name="full_name_ar" type="text" required inputmode="text" autocomplete="name"
+                                       pattern="^[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF\s]{2,80}$"
+                                       placeholder="مثال: محمد أحمد علي"
                                        class="w-full rounded-2xl bg-slate-950/50 border border-slate-800 px-4 py-3.5 text-sm text-white placeholder:text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 transition-all">
                             </div>
 
@@ -387,7 +389,9 @@
                                     <i data-lucide="type" class="w-3.5 h-3.5"></i>
                                     Full Name (English)
                                 </label>
-                                <input id="full_name_en" name="full_name_en" type="text" required placeholder="Ex: Mohamed Ahmed Ali"
+                                <input id="full_name_en" name="full_name_en" type="text" required inputmode="text" autocomplete="name"
+                                       pattern="^[A-Za-z\s]{2,120}$"
+                                       placeholder="Ex: Mohamed Ahmed Ali"
                                        class="w-full rounded-2xl bg-slate-950/50 border border-slate-800 px-4 py-3.5 text-sm text-white placeholder:text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 transition-all">
                             </div>
 
@@ -397,7 +401,8 @@
                                     <i data-lucide="mail" class="w-3.5 h-3.5"></i>
                                     البريد الإلكتروني
                                 </label>
-                                <input id="email" name="email" type="email" required placeholder="yourname@example.com"
+                                <input id="email" name="email" type="email" required inputmode="email" autocomplete="email" maxlength="120"
+                                       placeholder="yourname@example.com"
                                        class="w-full rounded-2xl bg-slate-950/50 border border-slate-800 px-4 py-3.5 text-sm text-white placeholder:text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 transition-all">
                             </div>
 
@@ -407,7 +412,8 @@
                                     <i data-lucide="phone" class="w-3.5 h-3.5"></i>
                                     رقم الهاتف (واتساب)
                                 </label>
-                                <input id="phone_number" name="phone_number" type="tel" required placeholder="01xxxxxxxxx"
+                                <input id="phone_number" name="phone_number" type="tel" required inputmode="numeric" autocomplete="tel"
+                                       maxlength="11" minlength="11" pattern="^01[0-9]{9}$" placeholder="01xxxxxxxxx"
                                        class="w-full rounded-2xl bg-slate-950/50 border border-slate-800 px-4 py-3.5 text-sm text-white placeholder:text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 transition-all">
                             </div>
 
@@ -805,6 +811,83 @@
         element.textContent = hours + ":" + minutes;
     }
     setInterval(updateClock, 1000 * 30);
+
+    (function() {
+        var arName = document.getElementById('full_name_ar');
+        var enName = document.getElementById('full_name_en');
+        var phone = document.getElementById('phone_number');
+        var email = document.getElementById('email');
+        var school = document.getElementById('school');
+        var form = document.querySelector('form[method="post"]');
+
+        var AR_RE = /[^\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF\s\u00AD]/g;
+        var EN_RE = /[^A-Za-z\s]/g;
+        var DIGIT_RE = /[^0-9]/g;
+        var SCH_RE = /[^A-Za-z\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF0-9\s\-]/g;
+        var EMAIL_RE = /[^A-Za-z0-9@._\-+]/g;
+
+        function bindFilter(el, re, maxLen) {
+            if (!el) return;
+            el.addEventListener('input', function() {
+                var v = el.value.replace(re, '');
+                v = v.replace(/\s{2,}/g, ' ').replace(/^\s+|\s+$/g, '');
+                if (maxLen) v = v.slice(0, maxLen);
+                if (v !== el.value) {
+                    var start = el.selectionStart, end = el.selectionEnd;
+                    el.value = v;
+                    if (start !== null) {
+                        var diff = el.value.length - (v.length);
+                        try { el.setSelectionRange(Math.max(0, start - diff), Math.max(0, end - diff)); } catch(e) {}
+                    }
+                }
+            });
+            el.addEventListener('paste', function(e) {
+                var pasted = (e.clipboardData || window.clipboardData).getData('text') || '';
+                var cleaned = pasted.replace(re, '').replace(/\s{2,}/g, ' ').trim();
+                if (maxLen) cleaned = cleaned.slice(0, maxLen);
+                if (cleaned !== pasted) {
+                    e.preventDefault();
+                    el.value = cleaned;
+                    el.dispatchEvent(new Event('input'));
+                }
+            });
+        }
+
+        bindFilter(arName, AR_RE, 80);
+        bindFilter(enName, EN_RE, 120);
+        bindFilter(phone, DIGIT_RE, 11);
+        bindFilter(email, EMAIL_RE, 120);
+        bindFilter(school, SCH_RE, 150);
+
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                if (arName && arName.value.trim().length < 2) {
+                    e.preventDefault();
+                    alert('الاسم العربي لازم يكون حرفين عربيين على الأقل ومينفعش أرقام أو رموز.');
+                    arName.focus();
+                    return false;
+                }
+                if (enName && enName.value.trim().length < 2) {
+                    e.preventDefault();
+                    alert('الاسم الإنجليزي لازم يكون حرفين إنجليزيين على الأقل ومينفعش أرقام أو رموز.');
+                    enName.focus();
+                    return false;
+                }
+                if (phone && !/^01[0-9]{9}$/.test(phone.value)) {
+                    e.preventDefault();
+                    alert('رقم الموبايل لازم يكون 11 رقم مصري يبدأ بـ 01 (مثال: 01012345678).');
+                    phone.focus();
+                    return false;
+                }
+                if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value)) {
+                    e.preventDefault();
+                    alert('أدخل بريد إلكتروني صحيح.');
+                    email.focus();
+                    return false;
+                }
+            });
+        }
+    })();
 
     (function() {
         var ppFile = document.getElementById('pp-file');

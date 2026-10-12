@@ -155,6 +155,25 @@ def public_screen_view(request):
             messages.error(request, 'يرجى ملء جميع الحقول المطلوبة في نموذج التسجيل.')
             return redirect('public_screen:public_screen')
 
+        import re
+        AR_NAME_RE = re.compile(r'^[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF\s]{2,80}$')
+        EN_NAME_RE = re.compile(r'^[A-Za-z\s]{2,120}$')
+        PHONE_RE = re.compile(r'^01[0-9]{9}$')
+        EMAIL_RE = re.compile(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
+
+        if not AR_NAME_RE.match(full_name_ar):
+            messages.error(request, 'الاسم العربي لازم يكون أحرف عربية فقط ومينفعش أرقام أو رموز.')
+            return redirect('public_screen:public_screen')
+        if not EN_NAME_RE.match(full_name_en):
+            messages.error(request, 'الاسم الإنجليزي لازم يكون أحرف إنجليزية فقط ومينفعش أرقام أو رموز.')
+            return redirect('public_screen:public_screen')
+        if not PHONE_RE.match(phone_number):
+            messages.error(request, 'رقم الموبايل لازم يكون 11 رقم مصري يبدأ بـ 01.')
+            return redirect('public_screen:public_screen')
+        if not EMAIL_RE.match(email):
+            messages.error(request, 'أدخل بريد إلكتروني صحيح.')
+            return redirect('public_screen:public_screen')
+
         # معالجة الصورة الشخصية (base64 من Cropper.js)
         profile_picture_file = None
         if profile_picture_data.startswith('data:image'):
