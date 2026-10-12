@@ -184,13 +184,16 @@
                     </div>
 
                     <div id="lookup-result-card" class="hidden rounded-2xl bg-slate-950/50 border border-slate-800 p-6 space-y-4">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <div class="text-[10px] font-bold text-cyan-500/50 uppercase tracking-widest mb-1">اسم الطالب</div>
-                                <div id="lookup-name" class="text-xl font-black text-white">--</div>
+                        <div class="flex items-center gap-4">
+                            <div class="shrink-0">
+                                <img id="lookup-avatar" src="" alt="الطالب"
+                                     class="w-20 h-20 rounded-2xl object-cover border-2 border-cyan-500/30 cursor-zoom-in shadow-lg"
+                                     onclick="openLightbox(this.src)">
                             </div>
-                            <div class="text-left">
-                                <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">رقم الطالب</div>
+                            <div class="flex-1 min-w-0">
+                                <div class="text-[10px] font-bold text-cyan-500/50 uppercase tracking-widest mb-1">اسم الطالب</div>
+                                <div id="lookup-name" class="text-xl font-black text-white truncate">--</div>
+                                <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">رقم الطالب</div>
                                 <div id="lookup-id" class="text-sm font-mono font-bold text-cyan-400">--</div>
                             </div>
                         </div>
@@ -374,14 +377,20 @@ document.addEventListener('DOMContentLoaded', function() {
                             resultsContainer.innerHTML = '';
                             data.students.forEach(student => {
                                 const div = document.createElement('div');
-                                div.className = 'p-4 hover:bg-slate-800 cursor-pointer border-b border-slate-800/50 last:border-0 transition-colors group';
+                                div.className = 'p-3 hover:bg-slate-800 cursor-pointer border-b border-slate-800/50 last:border-0 transition-colors group flex items-center gap-3';
+                                const avatarHtml = student.profile_picture
+                                    ? `<img src="${student.profile_picture}" alt="" class="w-10 h-10 rounded-xl object-cover border border-slate-700 cursor-zoom-in" onclick="event.stopPropagation(); openLightbox('${student.profile_picture}')">`
+                                    : `<div class="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-slate-500 font-black text-sm">${student.name.charAt(0)}</div>`;
                                 div.innerHTML = `
-                                    <div class="flex items-center justify-between">
-                                        <div class="flex flex-col">
-                                            <span class="text-sm font-bold text-slate-100 group-hover:text-cyan-400 transition-colors">${student.name}</span>
-                                            <span class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">${student.group_code || 'بدون مجموعة'}</span>
+                                    <div class="flex items-center justify-between flex-1 min-w-0">
+                                        <div class="flex items-center gap-3 min-w-0">
+                                            ${avatarHtml}
+                                            <div class="flex flex-col min-w-0">
+                                                <span class="text-sm font-bold text-slate-100 group-hover:text-cyan-400 transition-colors truncate">${student.name}</span>
+                                                <span class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">${student.group_code || 'بدون مجموعة'}</span>
+                                            </div>
                                         </div>
-                                        <span class="text-xs font-mono text-slate-400 bg-slate-950 px-2 py-1 rounded-lg border border-slate-800">${student.student_id}</span>
+                                        <span class="text-xs font-mono text-slate-400 bg-slate-950 px-2 py-1 rounded-lg border border-slate-800 shrink-0">${student.student_id}</span>
                                     </div>
                                 `;
                                 div.addEventListener('click', () => {
@@ -456,8 +465,11 @@ document.addEventListener('DOMContentLoaded', function() {
                                 sosSearchResults.innerHTML = '';
                                 data.students.forEach(s => {
                                     const div = document.createElement('div');
-                                    div.className = 'p-4 hover:bg-slate-800 cursor-pointer border-b border-slate-800/50 last:border-0 transition-colors group';
-                                    div.innerHTML = `<div class="flex items-center justify-between"><div class="flex flex-col"><span class="text-sm font-bold text-slate-100 group-hover:text-rose-400">${s.name}</span><span class="text-[10px] text-slate-500 font-bold uppercase">${s.group_code || 'بدون مجموعة'}</span></div><span class="text-xs font-mono text-slate-400 bg-slate-950 px-2 py-1 rounded-lg border border-slate-800">${s.student_id}</span></div>`;
+                                    div.className = 'p-3 hover:bg-slate-800 cursor-pointer border-b border-slate-800/50 last:border-0 transition-colors group flex items-center gap-3';
+                                    const avatarHtml = s.profile_picture
+                                        ? `<img src="${s.profile_picture}" alt="" class="w-10 h-10 rounded-xl object-cover border border-slate-700 cursor-zoom-in" onclick="event.stopPropagation(); openLightbox('${s.profile_picture}')">`
+                                        : `<div class="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-slate-500 font-black text-sm">${s.name.charAt(0)}</div>`;
+                                    div.innerHTML = `<div class="flex items-center justify-between flex-1 min-w-0"><div class="flex items-center gap-3 min-w-0">${avatarHtml}<div class="flex flex-col min-w-0"><span class="text-sm font-bold text-slate-100 group-hover:text-rose-400 truncate">${s.name}</span><span class="text-[10px] text-slate-500 font-bold uppercase">${s.group_code || 'بدون مجموعة'}</span></div></div><span class="text-xs font-mono text-slate-400 bg-slate-950 px-2 py-1 rounded-lg border border-slate-800 shrink-0">${s.student_id}</span></div>`;
                                     div.addEventListener('click', () => {
                                         sosStudentSearch.value = s.name;
                                         sosStudentId.value = s.student_id;
@@ -509,6 +521,14 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('lookup-group').textContent = s.group_code + (s.group_name && s.group_name !== '—' ? ' - ' + s.group_name : '');
         document.getElementById('lookup-workshop').textContent = s.current_workshop;
         document.getElementById('lookup-points').textContent = s.points + ' نقطة';
+        const avatar = document.getElementById('lookup-avatar');
+        if (s.profile_picture) {
+            avatar.src = s.profile_picture;
+            avatar.style.display = 'block';
+        } else {
+            avatar.src = '';
+            avatar.style.display = 'none';
+        }
         const statusEl = document.getElementById('lookup-status');
         if (s.checked_in) {
             statusEl.innerHTML = '<span class="text-emerald-400">دخل الفعالية ✅</span>';
@@ -554,14 +574,20 @@ document.addEventListener('DOMContentLoaded', function() {
                             lookupResults.innerHTML = '';
                             data.students.forEach(s => {
                                 const div = document.createElement('div');
-                                div.className = 'p-4 hover:bg-slate-800 cursor-pointer border-b border-slate-800/50 last:border-0 transition-colors';
+                                div.className = 'p-3 hover:bg-slate-800 cursor-pointer border-b border-slate-800/50 last:border-0 transition-colors flex items-center gap-3';
+                                const avatarHtml = s.profile_picture
+                                    ? `<img src="${s.profile_picture}" alt="" class="w-10 h-10 rounded-xl object-cover border border-slate-700 cursor-zoom-in" onclick="event.stopPropagation(); openLightbox('${s.profile_picture}')">`
+                                    : `<div class="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-slate-500 font-black text-sm">${s.name.charAt(0)}</div>`;
                                 div.innerHTML = `
-                                    <div class="flex items-center justify-between">
-                                        <div class="flex flex-col">
-                                            <span class="text-sm font-bold text-slate-100">${s.name}</span>
-                                            <span class="text-[10px] text-slate-500 font-bold uppercase">${s.group_code || 'بدون مجموعة'}</span>
+                                    <div class="flex items-center justify-between flex-1 min-w-0">
+                                        <div class="flex items-center gap-3 min-w-0">
+                                            ${avatarHtml}
+                                            <div class="flex flex-col min-w-0">
+                                                <span class="text-sm font-bold text-slate-100 truncate">${s.name}</span>
+                                                <span class="text-[10px] text-slate-500 font-bold uppercase">${s.group_code || 'بدون مجموعة'}</span>
+                                            </div>
                                         </div>
-                                        <span class="text-xs font-mono text-slate-400">${s.student_id}</span>
+                                        <span class="text-xs font-mono text-slate-400 shrink-0">${s.student_id}</span>
                                     </div>
                                 `;
                                 div.addEventListener('click', () => {

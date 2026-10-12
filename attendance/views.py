@@ -375,6 +375,8 @@ def scan_qr(request):
                 'success': True,
                 'is_already_checked_in': is_session_already_registered if session else is_event_already_checked_in,
                 'student': student.name,
+                'student_id': student.student_id,
+                'profile_picture': student.profile_picture.url if student.profile_picture else '',
                 'group': student.group.code if student.group else '',
                 'workshop': workshop_title,
                 'points_awarded': points_awarded,
@@ -462,6 +464,8 @@ def scan_session_qr(request, session_id):
                 'success': True,
                 'is_already_checked_in': is_session_already_registered,
                 'student': student.name,
+                'student_id': student.student_id,
+                'profile_picture': student.profile_picture.url if student.profile_picture else '',
                 'group': student.group.code if student.group else '',
                 'workshop': workshop_title,
                 'points_awarded': points_awarded,
@@ -801,7 +805,8 @@ def search_students(request):
             'student_id': s.student_id,
             'name': s.name,
             'group_code': s.group.code if s.group and s.group.event == event else 'بدون مجموعة',
-            'school': s.school or 'بدون مدرسة'
+            'school': s.school or 'بدون مدرسة',
+            'profile_picture': s.profile_picture.url if s.profile_picture else '',
         })
     
     return JsonResponse({'success': True, 'students': results})
@@ -865,6 +870,7 @@ def volunteer_student_lookup(request):
             'is_registered': is_registered,
             'checked_in': checked_in,
             'points': student.points,
+            'profile_picture': student.profile_picture.url if student.profile_picture else '',
         }
     })
 

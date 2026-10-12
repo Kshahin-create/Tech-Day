@@ -97,9 +97,15 @@
                     <tr class="hover:bg-slate-800/30 transition-colors group">
                         <td class="px-6 py-4">
                             <div class="flex items-center gap-3">
+                                {% if student.profile_picture %}
+                                <img src="{{ student.profile_picture.url }}" alt="{{ student.name }}"
+                                     class="w-10 h-10 rounded-2xl object-cover border border-slate-700 cursor-zoom-in group-hover:border-cyan-500/50 transition-colors"
+                                     onclick="openLightbox(this.src)">
+                                {% else %}
                                 <div class="w-10 h-10 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 group-hover:bg-cyan-500/10 group-hover:text-cyan-400 transition-colors">
                                     <i data-lucide="user" class="w-5 h-5"></i>
                                 </div>
+                                {% endif %}
                                 <div>
                                     <div class="font-bold text-slate-100">{{ student.name }}</div>
                                     <div class="text-[10px] text-slate-500 font-medium">{{ student.school|default:"-" }}</div>

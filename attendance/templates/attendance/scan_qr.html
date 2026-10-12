@@ -191,9 +191,14 @@
                             </div>
                             
                             <div class="space-y-4">
-                                <div>
-                                    <div class="text-[10px] font-bold text-emerald-500/50 uppercase tracking-widest mb-1">اسم الطالب</div>
-                                    <div id="res-student" class="text-xl font-black text-slate-100 leading-tight">--</div>
+                                <div class="flex items-center gap-4">
+                                    <img id="res-avatar" src="" alt=""
+                                         class="w-16 h-16 rounded-2xl object-cover border-2 border-emerald-500/30 cursor-zoom-in shadow-lg hidden"
+                                         onclick="openLightbox(this.src)">
+                                    <div class="min-w-0">
+                                        <div class="text-[10px] font-bold text-emerald-500/50 uppercase tracking-widest mb-1">اسم الطالب</div>
+                                        <div id="res-student" class="text-xl font-black text-slate-100 leading-tight truncate">--</div>
+                                    </div>
                                 </div>
                                 
                                 <div class="grid grid-cols-2 gap-4 pt-4 border-t border-emerald-500/10">
@@ -219,9 +224,14 @@
                             <h4 class="font-black">حضور مكرر!</h4>
                         </div>
                         <p class="text-sm text-slate-300 font-medium mb-4">تم تسجيل حضور هذا الطالب مسبقاً في هذه الفعالية.</p>
-                        <div class="p-3 rounded-2xl bg-amber-500/5 border border-amber-500/10">
-                            <div class="text-[10px] font-bold text-amber-500/50 uppercase mb-1">اسم الطالب</div>
-                            <div id="dup-student" class="text-sm font-bold text-slate-100">--</div>
+                        <div class="p-3 rounded-2xl bg-amber-500/5 border border-amber-500/10 flex items-center gap-3">
+                            <img id="dup-avatar" src="" alt=""
+                                 class="w-12 h-12 rounded-xl object-cover border border-amber-500/20 cursor-zoom-in hidden"
+                                 onclick="openLightbox(this.src)">
+                            <div class="min-w-0">
+                                <div class="text-[10px] font-bold text-amber-500/50 uppercase mb-1">اسم الطالب</div>
+                                <div id="dup-student" class="text-sm font-bold text-slate-100 truncate">--</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -325,6 +335,13 @@
 
         if (data.is_already_checked_in) {
             document.getElementById("dup-student").textContent = data.student || "مجهول";
+            var dupAvatar = document.getElementById("dup-avatar");
+            if (data.profile_picture) {
+                dupAvatar.src = data.profile_picture;
+                dupAvatar.classList.remove('hidden');
+            } else {
+                dupAvatar.classList.add('hidden');
+            }
             showCard("duplicate-card");
             playFeedback('error');
         } else {
@@ -332,6 +349,13 @@
             document.getElementById("res-student").textContent = data.student || "--";
             document.getElementById("res-group").textContent = data.group || "--";
             document.getElementById("res-workshop").textContent = data.workshop || "--";
+            var resAvatar = document.getElementById("res-avatar");
+            if (data.profile_picture) {
+                resAvatar.src = data.profile_picture;
+                resAvatar.classList.remove('hidden');
+            } else {
+                resAvatar.classList.add('hidden');
+            }
             showCard("result-card");
             playFeedback('success');
         }
