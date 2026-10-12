@@ -888,7 +888,11 @@ def admin_students_list(request):
         return HttpResponseForbidden()
     
     event = Event.get_current()
-    students_qs = Student.objects.select_related('group').all()
+    students_qs = Student.objects.select_related('group', 'user').all()
+
+    students_qs = students_qs.exclude(
+        user__role__in=[User.Roles.ADMIN, User.Roles.SUPERVISOR, User.Roles.VOLUNTEER],
+    )
 
     q = (request.GET.get('q') or '').strip()
     group_id = (request.GET.get('group') or '').strip()
@@ -960,6 +964,9 @@ def admin_smart_search(request):
             Q(group__name__icontains=query) |
             Q(group__code__icontains=query)
         ).select_related('group').distinct().order_by('name')
+        results = results.exclude(
+            user__role__in=[User.Roles.ADMIN, User.Roles.SUPERVISOR, User.Roles.VOLUNTEER],
+        )
         
     return render(request, 'dashboard/admin_smart_search.html', {
         'query': query,
@@ -983,6 +990,10 @@ def admin_current_event_students(request):
         registrations__status=StudentRegistration.Status.APPROVED,
         registrations__removed_at__isnull=True,
     ).select_related('group').distinct()
+
+    students_qs = students_qs.exclude(
+        user__role__in=[User.Roles.ADMIN, User.Roles.SUPERVISOR, User.Roles.VOLUNTEER],
+    )
 
     q = (request.GET.get('q') or '').strip()
     group_id = (request.GET.get('group') or '').strip()
