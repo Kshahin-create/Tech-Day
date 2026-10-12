@@ -17,6 +17,7 @@ from dashboard.models import Notification, Event, StudentSupportRequest
 from workshops.models import Workshop, WorkshopSession, WorkshopFeedback, WorkshopResource
 
 from .models import Student, Badge, StudentBadge, StudentEventStats, StudentRegistration, StudentWorkshopNote
+from .utils import process_profile_picture
 
 
 @login_required
@@ -425,6 +426,39 @@ def update_phone_view(request):
             messages.error(request, 'يرجى إدخال رقم هاتف صحيح.')
             
     return render(request, 'students/update_phone.html', {'student': student})
+
+
+@login_required
+def update_profile_picture(request):
+    student = getattr(request.user, 'student_profile', None)
+    if not student:
+        return redirect('dashboard:admin_dashboard')
+
+    if request.method == 'POST':
+        uploaded = request.FILES.get('profile_picture')
+        if not uploaded:
+            messages.error(request, 'يرجى اختيار صورة.')
+            return redirect('students:detail', pk=student.pk)
+
+        allowed = {'image/jpeg', 'image/png', 'image/webp'}
+        if uploaded.content_type not in allowed:
+            messages.error(request, 'الصيغة غير مدعومة. اختر صورة JPG أو PNG أو WEBP.')
+            return redirect('students:detail', pk=student.pk)
+
+        if uploaded.size > 10 * 1024 * 1024:
+            messages.error(request, 'حجم الصورة كبير جداً. الحد الأقصى 10 ميجابايت.')
+            return redirect('students:detail', pk=student.pk)
+
+        try:
+            processed = process_profile_picture(uploaded)
+            student.profile_picture.save(f'profile_{student.pk}.jpg', processed, save=True)
+            messages.success(request, 'تم تحديث صورتك الشخصية بنجاح!')
+        except Exception as e:
+            messages.error(request, f'حدث خطأ أثناء معالجة الصورة: {e}')
+
+        return redirect('students:detail', pk=student.pk)
+
+    return redirect('students:detail', pk=student.pk)
 
 
 def student_verify(request, identifier):
