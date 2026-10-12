@@ -35,7 +35,7 @@
                 <button type="submit" id="redistribute-btn"
                         class="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-800/50 hover:bg-slate-800 text-slate-200 text-xs font-bold transition-all border border-slate-700 group">
                     <i data-lucide="refresh-cw" class="w-4 h-4 text-slate-500 group-hover:rotate-180 transition-transform duration-500"></i>
-                    <span class="hidden sm:inline">إعادة التوزيع التلقائي</span>
+                    <span class="hidden sm:inline">توزيع الطلاب بدون مجموعة</span>
                 </button>
             </form>
             <button onclick="openGroupModal()"
@@ -511,7 +511,7 @@ searchInput.addEventListener('input', () => {
 
 // Redistribute with loading
 function handleRedistribute(form) {
-    if (!confirm('سيتم إعادة توزيع الطلاب غير المرتبطين بمجموعات تلقائياً. هل أنت متأكد؟')) return false;
+    if (!confirm('سيتم توزيع الطلاب الذين ليس لديهم مجموعات فقط على المجموعات المتاحة (مع احترام السعة القصوى). هل أنت متأكد؟')) return false;
     const btn = document.getElementById('redistribute-btn');
     const icon = btn.querySelector('i');
     icon.setAttribute('data-lucide', 'loader-2');

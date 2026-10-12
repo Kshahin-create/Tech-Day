@@ -2242,26 +2242,35 @@ def admin_group_update(request, pk):
 def admin_groups_redistribute(request):
     if not require_admin(request.user):
         return HttpResponseForbidden()
-    
+
     event = Event.get_current()
     if not event:
         messages.error(request, 'لا توجد فعالية نشطة لإعادة توزيع الطلاب عليها.')
         return redirect('dashboard:admin_groups')
-    
+
     primary_groups = list(Group.objects.filter(event=event, level=Group.Level.PRIMARY))
     prep_sec_groups = list(Group.objects.filter(event=event, level=Group.Level.PREP_SEC))
-    
-    # تصنيف الطلاب المسجلين في الفعالية الحالية فقط
+
+    if not primary_groups and not prep_sec_groups:
+        messages.error(request, 'لا توجد مجموعات معرفة لهذه الفعالية.')
+        return redirect('dashboard:admin_groups')
+
+    # جلب الطلاب المسجلين في الفعالية الحالية والذين ليس لهم مجموعة بعد فقط
     all_students = list(Student.objects.filter(
         registrations__event=event,
         registrations__status=StudentRegistration.Status.APPROVED,
         registrations__removed_at__isnull=True,
+        group__isnull=True,
     ).distinct())
-    
+
+    if not all_students:
+        messages.info(request, 'لا يوجد طلاب بدون مجموعة لتوزيعهم. جميع الطلاب لديهم مجموعات بالفعل.')
+        return redirect('dashboard:admin_groups')
+
     primary_students = []
     prep_sec_students = []
     other_students = []
-    
+
     for s in all_students:
         grade = (s.grade or '').lower()
         if 'prim' in grade:
@@ -2269,9 +2278,8 @@ def admin_groups_redistribute(request):
         elif 'prep' in grade or 'sec' in grade:
             prep_sec_students.append(s)
         else:
-            # طلاب بدون مرحلة محددة، سنعتبرهم مع الإعدادي والثانوي مؤقتاً أو حسب المتوفر
             other_students.append(s)
-            
+
     # إذا لم توجد مجموعات من نوع معين، ندمج المجموعات المتاحة
     if not primary_groups and prep_sec_groups:
         prep_sec_students.extend(primary_students)
@@ -2281,84 +2289,78 @@ def admin_groups_redistribute(request):
         primary_students.extend(prep_sec_students)
         prep_sec_students = []
         prep_sec_groups = primary_groups
-    elif not primary_groups and not prep_sec_groups:
-        messages.error(request, 'لا توجد مجموعات معرفة لهذه الفعالية.')
-        return redirect('dashboard:admin_groups')
-        
+
     # دمج الطلاب غير المصنفين مع المرحلة الأكبر
     prep_sec_students.extend(other_students)
-    
-    assignments = [] # قائمة بـ (student, group)
-    
-    # توزيع الابتدائي
-    if primary_students and primary_groups:
-        total_primary_capacity = sum(g.max_students for g in primary_groups)
-        
-        # إذا زاد عدد الطلاب الابتدائي عن سعة مجموعاتهم
-        if len(primary_students) > total_primary_capacity:
-            excess_count = len(primary_students) - total_primary_capacity
-            # نقل الزيادة لطلاب الإعدادي والثانوي
-            prep_sec_students.extend(primary_students[-excess_count:])
-            primary_students = primary_students[:-excess_count]
-            
-        # توزيع الطلاب الابتدائي المتبقين بالتساوي على مجموعات الابتدائي
-        for i, s in enumerate(primary_students):
-            g = primary_groups[i % len(primary_groups)]
-            assignments.append((s, g))
-            
-    # توزيع الإعدادي والثانوي (مع أي زيادة من الابتدائي)
-    if prep_sec_students and prep_sec_groups:
-        for i, s in enumerate(prep_sec_students):
-            g = prep_sec_groups[i % len(prep_sec_groups)]
-            assignments.append((s, g))
-    elif prep_sec_students and primary_groups:
-        # حالة طارئة: لا توجد مجموعات إعدادي/ثانوي، نوزعهم على الابتدائي
-        for i, s in enumerate(prep_sec_students):
-            g = primary_groups[i % len(primary_groups)]
-            assignments.append((s, g))
+
+    # دالة مساعدة لتوزيع الطلاب على مجموعات مع احترام السعة القصوى
+    def distribute_with_capacity(students, groups):
+        result = []
+        if not groups or not students:
+            return result
+
+        # حساب السعة المتبقية لكل مجموعة (الحد الأقصى - الطلاب الحاليين)
+        group_counts = {}
+        for g in groups:
+            group_counts[g.pk] = g.student_count
+
+        # ترتيب المجموعات حسب السعة المتبقية تنازلياً للتوزيع الأكثر اتزاناً
+        def get_remaining(g):
+            return max(0, g.max_students - group_counts[g.pk])
+
+        for s in students:
+            # اختر المجموعة التي لديها أكبر سعة متبقية
+            groups_sorted = sorted(groups, key=get_remaining, reverse=True)
+            target = groups_sorted[0]
+            remaining = get_remaining(target)
+            if remaining <= 0:
+                # كل المجموعات ممتلئة، اربط بأقل مجموعة كثافة (fallback)
+                target = sorted(groups, key=lambda g: group_counts[g.pk])[0]
+            result.append((s, target))
+            group_counts[target.pk] += 1
+        return result
+
+    assignments = []
+    assignments.extend(distribute_with_capacity(primary_students, primary_groups))
+    assignments.extend(distribute_with_capacity(prep_sec_students, prep_sec_groups))
 
     # تنفيذ التحديثات وإرسال الإيميلات
     with transaction.atomic():
-        # تفريغ المجموعات الحالية للفعالية لضمان نظافة التوزيع
-        Student.objects.filter(group__event=event).update(group=None)
-        
         for student, new_group in assignments:
-            old_group = student.group
             student.group = new_group
             student.save(update_fields=['group'])
-            
-            if new_group != old_group and student.email:
-                # إرسال إيميل التحديث
-                subject = 'تحديث مجموعتك بعد إعادة التوزيع في Tech Day – EduTech Egypt'
-                
+
+            if student.email:
+                subject = 'تحديث مجموعتك في Tech Day – EduTech Egypt'
+
                 content_blocks = f"""
                     <div class="td-email-box" style="padding:20px;border-radius:20px;background-color:#0f172a;border:1px solid #1e293b;margin-bottom:20px;text-align:center;">
-                      <p class="td-email-text-main" style="margin:0 0 10px;font-size:14px;color:#94a3b8;">مجموعتك الحالية بعد التوزيع:</p>
+                      <p class="td-email-text-main" style="margin:0 0 10px;font-size:14px;color:#94a3b8;">مجموعتك الحالية:</p>
                       <div class="td-group-badge" style="display:inline-block;padding:8px 20px;border-radius:12px;background-color:#1e293b;color:#ffffff;font-size:18px;font-weight:800;border:1px solid {new_group.color};">
                         {new_group.name} ({new_group.code})
                       </div>
                     </div>
                 """
-                
+
                 html_body = get_styled_email_html(
                     subject=subject,
-                    preview_text=f"إعادة توزيع المجموعات: مجموعتك هي {new_group.name}",
-                    title="🔄 إعادة توزيع المجموعات",
-                    main_text=f"مرحبًا {student.name}، تم تحديث بيانات مجموعتك في الفعالية.",
+                    preview_text=f"تم توزيعك على مجموعة {new_group.name}",
+                    title="🔄 تحديث المجموعة",
+                    main_text=f"مرحبًا {student.name}، تم توزيعك على مجموعة في الفعالية.",
                     content_blocks_html=content_blocks
                 )
-                
+
                 message = EmailMultiAlternatives(
                     subject,
-                    f'مرحبًا {student.name},\n\nتم إعادة توزيعك للمجموعة: {new_group.name}\n\nنتمنى لك التوفيق.',
+                    f'مرحبًا {student.name},\n\nتم توزيعك للمجموعة: {new_group.name}\n\nنتمنى لك التوفيق.',
                     settings.DEFAULT_FROM_EMAIL,
                     [student.email],
                 )
                 message.attach_alternative(html_body, 'text/html')
-                send_email_async(message, 'إشعار إعادة توزيع الطلاب على المجموعات')
+                send_email_async(message, 'إشعار توزيع الطلاب على المجموعات')
 
-    AdminLog.objects.create(action=f'تم إعادة توزيع {len(assignments)} طالب في فعالية {event.name} ({event.location_name})')
-    messages.success(request, f'تم إعادة توزيع {len(assignments)} طالب في الفعالية الحالية بنجاح')
+    AdminLog.objects.create(action=f'تم توزيع {len(assignments)} طالب بدون مجموعة في فعالية {event.name} ({event.location_name})')
+    messages.success(request, f'تم توزيع {len(assignments)} طالب على المجموعات بنجاح')
     return redirect('dashboard:admin_groups')
 
 
