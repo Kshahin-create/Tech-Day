@@ -935,7 +935,7 @@
             if (!el) return;
             el.addEventListener('input', function() {
                 var v = el.value.replace(re, '');
-                v = v.replace(/\s{2,}/g, ' ').replace(/^\s+|\s+$/g, '');
+                v = v.replace(/\s{2,}/g, ' ');
                 if (maxLen) v = v.slice(0, maxLen);
                 if (v !== el.value) {
                     var start = el.selectionStart, end = el.selectionEnd;
