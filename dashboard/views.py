@@ -2098,14 +2098,104 @@ def admin_groups(request):
     if show_all:
         groups = Group.objects.all().order_by('-event__created_at', 'code')
     else:
-        # عرض مجموعات الفعالية الحالية فقط افتراضياً
         groups = Group.objects.filter(event=event).order_by('code')
-        
+
+    groups = groups.select_related('event')
+    total_students = sum(g.student_count for g in groups)
+    total_capacity = sum(g.max_students for g in groups)
+    total_points = sum(g.points for g in groups)
+
     return render(request, 'dashboard/admin_groups.html', {
         'groups': groups, 
         'event': event,
-        'show_all': show_all
+        'show_all': show_all,
+        'stats': {
+            'groups_count': groups.count(),
+            'total_students': total_students,
+            'total_capacity': total_capacity,
+            'total_points': total_points,
+            'occupancy': round((total_students / total_capacity * 100), 1) if total_capacity else 0,
+        }
     })
+
+
+@login_required
+def admin_group_api(request, pk=None):
+    if not require_admin(request.user):
+        return JsonResponse({'error': 'غير مسموح'}, status=403)
+
+    event = Event.get_current()
+
+    if request.method == 'GET' and pk:
+        group = get_object_or_404(Group, pk=pk)
+        return JsonResponse({
+            'id': group.pk,
+            'name': group.name,
+            'code': group.code,
+            'color': group.color,
+            'level': group.level,
+            'max_students': group.max_students,
+            'points': group.points,
+        })
+
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            name = (data.get('name') or '').strip()
+            code = (data.get('code') or '').strip().upper()
+            color = (data.get('color') or '').strip() or '#6366f1'
+            level = data.get('level') or Group.Level.PRIMARY
+            max_students = int(data.get('max_students') or 25)
+
+            if not name or not code:
+                return JsonResponse({'error': 'الاسم والكود مطلوبان'}, status=400)
+            if level not in dict(Group.Level.choices):
+                return JsonResponse({'error': 'مرحلة دراسية غير صالحة'}, status=400)
+
+            group = Group.objects.create(
+                name=name, code=code, color=color,
+                max_students=max_students, level=level,
+                event=event
+            )
+            AdminLog.objects.create(action=f'تم إنشاء المجموعة {group}')
+            return JsonResponse({
+                'id': group.pk,
+                'name': group.name,
+                'code': group.code,
+                'color': group.color,
+                'level': group.get_level_display(),
+                'max_students': group.max_students,
+                'points': group.points,
+                'student_count': group.student_count,
+            }, status=201)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=400)
+
+    if request.method == 'PUT' and pk:
+        group = get_object_or_404(Group, pk=pk)
+        try:
+            data = json.loads(request.body)
+            group.name = (data.get('name') or group.name).strip()
+            group.code = (data.get('code') or group.code).strip().upper()
+            group.color = (data.get('color') or group.color).strip()
+            group.level = data.get('level') or group.level
+            group.max_students = int(data.get('max_students') or group.max_students)
+            group.save()
+            AdminLog.objects.create(action=f'تم تعديل المجموعة {group}')
+            return JsonResponse({
+                'id': group.pk,
+                'name': group.name,
+                'code': group.code,
+                'color': group.color,
+                'level': group.get_level_display(),
+                'max_students': group.max_students,
+                'points': group.points,
+                'student_count': group.student_count,
+            })
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=400)
+
+    return JsonResponse({'error': 'طريقة غير مسموحة'}, status=405)
 
 
 @login_required

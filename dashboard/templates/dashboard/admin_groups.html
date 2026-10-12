@@ -3,81 +3,139 @@
 {% block title %}إدارة المجموعات - لوحة التحكم{% endblock %}
 
 {% block page %}
-<div class="space-y-6">
-    <!-- Header Section -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/40 backdrop-blur-xl border border-slate-800 p-6 rounded-3xl">
+<div class="space-y-5">
+
+    <!-- Header -->
+    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-900/40 backdrop-blur-xl border border-slate-800 p-5 rounded-3xl">
         <div class="flex items-center gap-4">
-            <div class="p-3 rounded-2xl bg-violet-500/10 text-violet-400">
-                <i data-lucide="layers" class="w-8 h-8"></i>
+            <div class="p-3 rounded-2xl bg-violet-500/10 text-violet-400 shrink-0">
+                <i data-lucide="layers" class="w-7 h-7"></i>
             </div>
             <div>
-                <h1 class="text-2xl font-black text-slate-100">إدارة المجموعات</h1>
-                <p class="text-sm text-slate-400 font-medium">تنظيم الطلاب في مجموعات، إدارة القدرة الاستيعابية، وتوزيع النقاط</p>
+                <h1 class="text-xl lg:text-2xl font-black text-slate-100">إدارة المجموعات</h1>
+                <p class="text-xs lg:text-sm text-slate-400 font-medium">تنظيم الطلاب، إدارة القدرة الاستيعابية، وتوزيع النقاط</p>
             </div>
         </div>
-        <div class="flex items-center gap-3">
+        <div class="flex flex-wrap items-center gap-2">
             {% if show_all %}
             <a href="{% url 'dashboard:admin_groups' %}"
-               class="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-sm font-bold transition-all border border-amber-500/20">
+               class="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-xs font-bold transition-all border border-amber-500/20">
                 <i data-lucide="filter" class="w-4 h-4"></i>
-                <span>عرض الحالية فقط</span>
+                <span class="hidden sm:inline">عرض الحالية فقط</span>
             </a>
             {% else %}
             <a href="{% url 'dashboard:admin_groups' %}?all=true"
-               class="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-slate-800/50 hover:bg-slate-800 text-slate-200 text-sm font-bold transition-all border border-slate-700">
+               class="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-800/50 hover:bg-slate-800 text-slate-200 text-xs font-bold transition-all border border-slate-700">
                 <i data-lucide="list" class="w-4 h-4 text-slate-500"></i>
-                <span>عرض كل المجموعات</span>
+                <span class="hidden sm:inline">عرض كل المجموعات</span>
             </a>
             {% endif %}
-            <form method="post" action="{% url 'dashboard:admin_groups_redistribute' %}" class="contents" onsubmit="return confirm('سيتم إعادة توزيع الطلاب غير المرتبطين بمجموعات تلقائياً. هل أنت متأكد؟');">
+            <form method="post" action="{% url 'dashboard:admin_groups_redistribute' %}" class="contents" id="redistribute-form" onsubmit="return handleRedistribute(this);">
                 {% csrf_token %}
-                <button type="submit"
-                        class="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-slate-800/50 hover:bg-slate-800 text-slate-200 text-sm font-bold transition-all border border-slate-700 group">
+                <button type="submit" id="redistribute-btn"
+                        class="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-800/50 hover:bg-slate-800 text-slate-200 text-xs font-bold transition-all border border-slate-700 group">
                     <i data-lucide="refresh-cw" class="w-4 h-4 text-slate-500 group-hover:rotate-180 transition-transform duration-500"></i>
-                    <span>إعادة التوزيع التلقائي</span>
+                    <span class="hidden sm:inline">إعادة التوزيع التلقائي</span>
                 </button>
             </form>
-            <a href="{% url 'dashboard:admin_group_create' %}"
-               class="inline-flex items-center gap-2 px-6 py-2.5 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-sm font-black transition-all shadow-lg shadow-cyan-500/20">
+            <button onclick="openGroupModal()"
+               class="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-black transition-all shadow-lg shadow-cyan-500/20 active:scale-95">
                 <i data-lucide="plus-circle" class="w-4 h-4"></i>
                 <span>إضافة مجموعة</span>
-            </a>
+            </button>
         </div>
     </div>
 
-    <!-- Groups Grid/Table Card -->
-    <div class="bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div class="bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-2xl p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-[10px] font-black uppercase tracking-wider text-slate-500">إجمالي المجموعات</div>
+                    <div class="text-2xl font-black text-slate-100 mt-1">{{ stats.groups_count }}</div>
+                </div>
+                <div class="p-2.5 rounded-xl bg-violet-500/10 text-violet-400">
+                    <i data-lucide="layers" class="w-5 h-5"></i>
+                </div>
+            </div>
+        </div>
+        <div class="bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-2xl p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-[10px] font-black uppercase tracking-wider text-slate-500">إجمالي الطلاب</div>
+                    <div class="text-2xl font-black text-slate-100 mt-1">{{ stats.total_students }}</div>
+                </div>
+                <div class="p-2.5 rounded-xl bg-cyan-500/10 text-cyan-400">
+                    <i data-lucide="users" class="w-5 h-5"></i>
+                </div>
+            </div>
+        </div>
+        <div class="bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-2xl p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-[10px] font-black uppercase tracking-wider text-slate-500">نسبة الاستيعاب</div>
+                    <div class="text-2xl font-black text-slate-100 mt-1">{{ stats.occupancy }}%</div>
+                </div>
+                <div class="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400">
+                    <i data-lucide="gauge" class="w-5 h-5"></i>
+                </div>
+            </div>
+        </div>
+        <div class="bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-2xl p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-[10px] font-black uppercase tracking-wider text-slate-500">إجمالي النقاط</div>
+                    <div class="text-2xl font-black text-slate-100 mt-1">{{ stats.total_points }}</div>
+                </div>
+                <div class="p-2.5 rounded-xl bg-amber-500/10 text-amber-400">
+                    <i data-lucide="star" class="w-5 h-5 fill-amber-400/20"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-2xl p-3">
+        <div class="relative">
+            <i data-lucide="search" class="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600"></i>
+            <input type="text" id="group-search" placeholder="ابحث باسم المجموعة أو الكود..."
+                   class="w-full pr-11 pl-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-violet-500/40 focus:border-violet-500/50 transition-all text-sm font-bold">
+        </div>
+    </div>
+
+    <!-- Desktop Table -->
+    <div class="hidden md:block bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
         <div class="overflow-x-auto">
             <table class="w-full text-sm text-right">
                 <thead class="bg-slate-800/30 text-slate-500 text-[10px] uppercase tracking-wider font-bold border-b border-slate-800">
                     <tr>
-                        <th class="px-6 py-4">المجموعة</th>
-                        <th class="px-6 py-4">الفعالية</th>
-                        <th class="px-6 py-4">المرحلة الدراسية</th>
-                        <th class="px-6 py-4">السعة والاستيعاب</th>
-                        <th class="px-6 py-4">إجمالي النقاط</th>
-                        <th class="px-6 py-4 text-center">الإجراءات</th>
+                        <th class="px-5 py-4">المجموعة</th>
+                        <th class="px-5 py-4">الفعالية</th>
+                        <th class="px-5 py-4">المرحلة</th>
+                        <th class="px-5 py-4">الاستيعاب</th>
+                        <th class="px-5 py-4">النقاط</th>
+                        <th class="px-5 py-4 text-center">الإجراءات</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-800">
+                <tbody class="divide-y divide-slate-800" id="groups-table-body">
                     {% for group in groups %}
-                    <tr class="hover:bg-slate-800/30 transition-colors group">
-                        <td class="px-6 py-4">
+                    <tr class="group-row hover:bg-slate-800/30 transition-colors" data-name="{{ group.name }}" data-code="{{ group.code }}">
+                        <td class="px-5 py-4">
                             <div class="flex items-center gap-3">
-                                <div class="w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-black shadow-lg" 
-                                     style="background-color: {{ group.color }}20; color: {{ group.color }}; border: 1px solid {{ group.color }}30;">
+                                <div class="w-11 h-11 rounded-xl flex items-center justify-center text-base font-black shrink-0"
+                                     style="background-color: {{ group.color }}20; color: {{ group.color }}; border: 1px solid {{ group.color }}40;">
                                     {{ group.code }}
                                 </div>
                                 <div>
-                                    <div class="font-bold text-slate-100">{{ group.name }}</div>
-                                    <div class="flex items-center gap-2 mt-1">
-                                        <div class="w-3 h-3 rounded-full shadow-inner" style="background-color: {{ group.color }}"></div>
-                                        <span class="text-[10px] font-mono text-slate-500 font-bold">{{ group.color }}</span>
+                                    <div class="font-bold text-slate-100 group-cell-name">{{ group.name }}</div>
+                                    <div class="flex items-center gap-1.5 mt-0.5">
+                                        <div class="w-2.5 h-2.5 rounded-full" style="background-color: {{ group.color }}"></div>
+                                        <span class="text-[10px] font-mono text-slate-500">{{ group.color }}</span>
                                     </div>
                                 </div>
                             </div>
                         </td>
-                        <td class="px-6 py-4">
+                        <td class="px-5 py-4">
                             {% if group.event %}
                             <div class="flex flex-col">
                                 <span class="text-xs font-bold text-slate-300">{{ group.event.location_name }}</span>
@@ -87,41 +145,37 @@
                             <span class="text-[10px] text-slate-600 italic">بدون فعالية</span>
                             {% endif %}
                         </td>
-                        <td class="px-6 py-4">
-                            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-slate-950 border border-slate-800">
-                                <i data-lucide="graduation-cap" class="w-3.5 h-3.5 text-violet-400"></i>
-                                <span class="text-xs font-bold text-slate-300">{{ group.get_level_display }}</span>
+                        <td class="px-5 py-4">
+                            <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800">
+                                <i data-lucide="graduation-cap" class="w-3 h-3 text-violet-400"></i>
+                                <span class="text-[11px] font-bold text-slate-300">{{ group.get_level_display }}</span>
                             </div>
                         </td>
-                        <td class="px-6 py-4">
-                            <div class="space-y-2 max-w-[140px]">
+                        <td class="px-5 py-4">
+                            <div class="space-y-1.5 max-w-[130px]">
                                 <div class="flex items-center justify-between text-[10px] font-bold">
-                                    <span class="text-slate-500">الطلاب: {{ group.student_count }}</span>
-                                    <span class="text-slate-400">/ {{ group.max_students }}</span>
+                                    <span class="text-slate-400 group-cell-count">{{ group.student_count }}</span>
+                                    <span class="text-slate-600">/ {{ group.max_students }}</span>
                                 </div>
                                 <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                                    <div class="h-full rounded-full transition-all duration-1000" 
-                                         style="background-color: {{ group.color }}; width: {% widthratio group.student_count group.max_students 100 %}%"></div>
+                                    <div class="h-full rounded-full" style="background-color: {{ group.color }}; width: {% widthratio group.student_count group.max_students 100 %}%"></div>
                                 </div>
                             </div>
                         </td>
-                        <td class="px-6 py-4">
-                            <div class="flex items-center gap-2">
-                                <div class="p-2 rounded-lg bg-amber-500/10 text-amber-400">
-                                    <i data-lucide="star" class="w-4 h-4 fill-amber-400/20"></i>
-                                </div>
-                                <span class="text-sm font-black text-slate-100">{{ group.total_points|default:"0" }}</span>
-                                <span class="text-[10px] text-slate-500 font-bold">نقطة</span>
+                        <td class="px-5 py-4">
+                            <div class="flex items-center gap-1.5">
+                                <i data-lucide="star" class="w-3.5 h-3.5 text-amber-400 fill-amber-400/20"></i>
+                                <span class="text-sm font-black text-slate-100 group-cell-points">{{ group.points }}</span>
                             </div>
                         </td>
-                        <td class="px-6 py-4">
-                            <div class="flex items-center justify-center gap-2">
-                                <a href="{% url 'dashboard:admin_group_update' group.pk %}" title="تعديل المجموعة"
-                                   class="p-2 rounded-xl bg-slate-800 text-slate-400 hover:bg-cyan-500/10 hover:text-cyan-400 transition-all border border-slate-700">
+                        <td class="px-5 py-4">
+                            <div class="flex items-center justify-center gap-1.5">
+                                <button onclick="openGroupModal({{ group.pk }})" title="تعديل"
+                                        class="p-2 rounded-xl bg-slate-800 text-slate-400 hover:bg-cyan-500/10 hover:text-cyan-400 transition-all border border-slate-700 active:scale-90">
                                     <i data-lucide="edit-3" class="w-4 h-4"></i>
-                                </a>
-                                <a href="{% url 'dashboard:admin_students_list' %}?group={{ group.id }}" title="عرض طلاب المجموعة"
-                                   class="p-2 rounded-xl bg-slate-800 text-slate-400 hover:bg-violet-500/10 hover:text-violet-400 transition-all border border-slate-700">
+                                </button>
+                                <a href="{% url 'dashboard:admin_students_list' %}?group={{ group.id }}" title="طلاب المجموعة"
+                                   class="p-2 rounded-xl bg-slate-800 text-slate-400 hover:bg-violet-500/10 hover:text-violet-400 transition-all border border-slate-700 active:scale-90">
                                     <i data-lucide="users" class="w-4 h-4"></i>
                                 </a>
                             </div>
@@ -129,7 +183,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="5" class="px-6 py-12 text-center space-y-3">
+                        <td colspan="6" class="px-6 py-16 text-center space-y-3">
                             <div class="w-16 h-16 bg-slate-800/50 rounded-full flex items-center justify-center mx-auto text-slate-600">
                                 <i data-lucide="layers" class="w-8 h-8"></i>
                             </div>
@@ -141,6 +195,356 @@
             </table>
         </div>
     </div>
-</div>
-{% endblock %}
 
+    <!-- Mobile Cards -->
+    <div class="md:hidden space-y-3" id="groups-cards">
+        {% for group in groups %}
+        <div class="group-card bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-2xl p-4" data-name="{{ group.name }}" data-code="{{ group.code }}">
+            <div class="flex items-start justify-between gap-3">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div class="w-12 h-12 rounded-xl flex items-center justify-center text-lg font-black shrink-0"
+                         style="background-color: {{ group.color }}20; color: {{ group.color }}; border: 1px solid {{ group.color }}40;">
+                        {{ group.code }}
+                    </div>
+                    <div class="min-w-0">
+                        <div class="font-bold text-slate-100 truncate">{{ group.name }}</div>
+                        <div class="flex items-center gap-2 mt-1">
+                            <div class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-950 border border-slate-800">
+                                <i data-lucide="graduation-cap" class="w-3 h-3 text-violet-400"></i>
+                                <span class="text-[10px] font-bold text-slate-300">{{ group.get_level_display }}</span>
+                            </div>
+                            <div class="flex items-center gap-1">
+                                <i data-lucide="star" class="w-3 h-3 text-amber-400 fill-amber-400/20"></i>
+                                <span class="text-xs font-black text-slate-200">{{ group.points }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex flex-col gap-1.5 shrink-0">
+                    <button onclick="openGroupModal({{ group.pk }})" title="تعديل"
+                            class="p-2 rounded-lg bg-slate-800 text-slate-400 hover:bg-cyan-500/10 hover:text-cyan-400 transition-all border border-slate-700 active:scale-90">
+                        <i data-lucide="edit-3" class="w-4 h-4"></i>
+                    </button>
+                    <a href="{% url 'dashboard:admin_students_list' %}?group={{ group.id }}" title="طلاب المجموعة"
+                       class="p-2 rounded-lg bg-slate-800 text-slate-400 hover:bg-violet-500/10 hover:text-violet-400 transition-all border border-slate-700 active:scale-90 flex items-center justify-center">
+                        <i data-lucide="users" class="w-4 h-4"></i>
+                    </a>
+                </div>
+            </div>
+            <div class="mt-3 pt-3 border-t border-slate-800/50">
+                <div class="flex items-center justify-between text-xs font-bold mb-1.5">
+                    <span class="text-slate-400">الطلاب: {{ group.student_count }} / {{ group.max_students }}</span>
+                    <span class="text-slate-500">{% widthratio group.student_count group.max_students 100 %}%</span>
+                </div>
+                <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                    <div class="h-full rounded-full" style="background-color: {{ group.color }}; width: {% widthratio group.student_count group.max_students 100 %}%"></div>
+                </div>
+            </div>
+            {% if group.event %}
+            <div class="mt-2 flex items-center gap-1.5 text-[11px] text-slate-500">
+                <i data-lucide="map-pin" class="w-3 h-3"></i>
+                <span>{{ group.event.location_name }} — {{ group.event.year }}/{{ group.event.execution_number }}</span>
+            </div>
+            {% endif %}
+        </div>
+        {% empty %}
+        <div class="bg-slate-900/40 border border-slate-800 rounded-2xl p-10 text-center space-y-3">
+            <div class="w-14 h-14 bg-slate-800/50 rounded-full flex items-center justify-center mx-auto text-slate-600">
+                <i data-lucide="layers" class="w-7 h-7"></i>
+            </div>
+            <div class="text-slate-500 font-bold text-sm">لا توجد مجموعات مسجلة</div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- No results message (search) -->
+    <div id="no-results" class="hidden bg-slate-900/40 border border-slate-800 rounded-2xl p-10 text-center space-y-3">
+        <div class="w-14 h-14 bg-slate-800/50 rounded-full flex items-center justify-center mx-auto text-slate-600">
+            <i data-lucide="search-x" class="w-7 h-7"></i>
+        </div>
+        <div class="text-slate-500 font-bold text-sm">لا توجد نتائج مطابقة</div>
+    </div>
+
+</div>
+
+<!-- Group Modal (Create / Edit) -->
+<div id="group-modal" class="fixed inset-0 z-[100] hidden items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-200">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-200 relative overflow-hidden max-h-[90vh] overflow-y-auto">
+        <div class="absolute -top-24 -right-24 w-48 h-48 bg-violet-500/10 rounded-full blur-3xl"></div>
+
+        <button onclick="closeGroupModal()"
+                class="absolute top-5 left-5 p-2.5 rounded-2xl bg-slate-800/50 text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition-all active:scale-90 z-10">
+            <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+
+        <div class="relative z-10 p-6">
+            <div class="flex items-center gap-4 mb-6">
+                <div class="p-4 bg-violet-500/10 rounded-2xl border border-violet-500/20 text-violet-400">
+                    <i data-lucide="layers" class="w-7 h-7"></i>
+                </div>
+                <div>
+                    <h3 id="modal-title" class="text-xl font-black text-white tracking-tight">إضافة مجموعة جديدة</h3>
+                    <p id="modal-subtitle" class="text-xs text-slate-400 font-bold mt-0.5">أدخل بيانات المجموعة</p>
+                </div>
+            </div>
+
+            <form id="group-form" class="space-y-5">
+                {% csrf_token %}
+                <input type="hidden" id="group-id">
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="sm:col-span-2 space-y-2">
+                        <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                            <i data-lucide="tag" class="w-3.5 h-3.5"></i> اسم المجموعة
+                        </label>
+                        <input id="g-name" name="name" type="text" required placeholder="مثال: عباقرة البرمجة"
+                               class="w-full px-4 py-3 rounded-2xl bg-slate-950 border border-slate-800 text-slate-200 placeholder:text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500/40 focus:border-violet-500/50 transition-all font-bold text-sm">
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                            <i data-lucide="hash" class="w-3.5 h-3.5"></i> الكود (فريد)
+                        </label>
+                        <input id="g-code" name="code" type="text" required maxlength="1" placeholder="A"
+                               class="w-full px-4 py-3 rounded-2xl bg-slate-950 border border-slate-800 text-slate-200 placeholder:text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500/40 focus:border-violet-500/50 transition-all font-bold text-sm uppercase font-mono text-center">
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                            <i data-lucide="pipette" class="w-3.5 h-3.5"></i> اللون
+                        </label>
+                        <div class="flex gap-2">
+                            <input id="g-color" name="color" type="color" value="#6366f1"
+                                   class="w-12 h-12 rounded-2xl bg-slate-950 border border-slate-800 cursor-pointer p-1">
+                            <input id="g-color-hex" type="text" value="#6366f1"
+                                   class="flex-1 px-3 py-3 rounded-2xl bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500/40 transition-all font-bold text-sm font-mono">
+                        </div>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                            <i data-lucide="graduation-cap" class="w-3.5 h-3.5"></i> المرحلة الدراسية
+                        </label>
+                        <select id="g-level" name="level" required
+                                class="w-full px-4 py-3 rounded-2xl bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/40 focus:border-cyan-500/50 transition-all font-bold text-sm appearance-none cursor-pointer">
+                            <option value="primary">المرحلة الابتدائية</option>
+                            <option value="prep_sec">المرحلة الإعدادية والثانوية</option>
+                        </select>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                            <i data-lucide="users" class="w-3.5 h-3.5"></i> الحد الأقصى للطلاب
+                        </label>
+                        <input id="g-max" name="max_students" type="number" min="1" value="25"
+                               class="w-full px-4 py-3 rounded-2xl bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/40 focus:border-cyan-500/50 transition-all font-bold text-sm">
+                    </div>
+                </div>
+
+                <div id="form-error" class="hidden p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-bold flex items-center gap-2">
+                    <i data-lucide="alert-circle" class="w-4 h-4 shrink-0"></i>
+                    <span id="form-error-text"></span>
+                </div>
+
+                <div class="flex gap-2 pt-2">
+                    <button type="button" onclick="closeGroupModal()"
+                            class="flex-1 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-bold transition-all border border-slate-700 active:scale-95">
+                        إلغاء
+                    </button>
+                    <button type="submit" id="submit-btn"
+                            class="flex-1 py-3 rounded-2xl bg-gradient-to-r from-violet-500 to-cyan-500 hover:from-violet-400 hover:to-cyan-400 text-white text-sm font-black transition-all shadow-lg shadow-violet-500/20 active:scale-95 flex items-center justify-center gap-2">
+                        <i data-lucide="check-circle" class="w-4 h-4 submit-icon"></i>
+                        <span class="submit-text">حفظ المجموعة</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] hidden px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-2 animate-in slide-in-from-bottom-4 duration-300">
+    <i id="toast-icon" class="w-5 h-5"></i>
+    <span id="toast-text" class="text-sm font-bold"></span>
+</div>
+
+<script>
+const API_BASE = "{% url 'dashboard:admin_group_api' %}";
+const CSRF_TOKEN = "{{ csrf_token }}";
+
+let currentEditingId = null;
+
+// Sync color picker <-> hex input
+const colorInput = document.getElementById('g-color');
+const colorHex = document.getElementById('g-color-hex');
+colorInput.addEventListener('input', () => { colorHex.value = colorInput.value; });
+colorHex.addEventListener('input', () => {
+    if (/^#[0-9A-Fa-f]{6}$/.test(colorHex.value)) colorInput.value = colorHex.value;
+});
+
+function openGroupModal(id) {
+    currentEditingId = id || null;
+    document.getElementById('form-error').classList.add('hidden');
+    const modal = document.getElementById('group-modal');
+
+    if (id) {
+        document.getElementById('modal-title').textContent = 'تعديل بيانات المجموعة';
+        document.getElementById('modal-subtitle').textContent = 'قم بتحديث بيانات المجموعة';
+        document.querySelector('.submit-text').textContent = 'حفظ التعديلات';
+        loadGroup(id);
+    } else {
+        document.getElementById('modal-title').textContent = 'إضافة مجموعة جديدة';
+        document.getElementById('modal-subtitle').textContent = 'أدخل بيانات المجموعة';
+        document.querySelector('.submit-text').textContent = 'إنشاء المجموعة';
+        document.getElementById('group-form').reset();
+        document.getElementById('group-id').value = '';
+        document.getElementById('g-color').value = '#6366f1';
+        document.getElementById('g-color-hex').value = '#6366f1';
+    }
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeGroupModal() {
+    const modal = document.getElementById('group-modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    document.body.style.overflow = '';
+    currentEditingId = null;
+}
+
+async function loadGroup(id) {
+    try {
+        const res = await fetch(`${API_BASE}${id}/`, {
+            headers: { 'X-CSRFToken': CSRF_TOKEN }
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'خطأ في التحميل');
+        document.getElementById('group-id').value = data.id;
+        document.getElementById('g-name').value = data.name;
+        document.getElementById('g-code').value = data.code;
+        document.getElementById('g-color').value = data.color || '#6366f1';
+        document.getElementById('g-color-hex').value = data.color || '#6366f1';
+        document.getElementById('g-level').value = data.level;
+        document.getElementById('g-max').value = data.max_students;
+    } catch (e) {
+        showToast(e.message, 'error');
+    }
+}
+
+document.getElementById('group-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('submit-btn');
+    const icon = btn.querySelector('.submit-icon');
+    const text = btn.querySelector('.submit-text');
+    const origText = text.textContent;
+    const origIcon = icon.getAttribute('data-lucide');
+
+    btn.disabled = true;
+    icon.setAttribute('data-lucide', 'loader-2');
+    icon.classList.add('animate-spin');
+    text.textContent = 'جاري الحفظ...';
+    lucide.createIcons();
+
+    const payload = {
+        name: document.getElementById('g-name').value.trim(),
+        code: document.getElementById('g-code').value.trim(),
+        color: document.getElementById('g-color-hex').value.trim(),
+        level: document.getElementById('g-level').value,
+        max_students: parseInt(document.getElementById('g-max').value) || 25,
+    };
+
+    try {
+        const url = currentEditingId ? `${API_BASE}${currentEditingId}/` : API_BASE;
+        const method = currentEditingId ? 'PUT' : 'POST';
+        const res = await fetch(url, {
+            method,
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': CSRF_TOKEN,
+            },
+            body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'فشل الحفظ');
+
+        showToast(currentEditingId ? 'تم تحديث المجموعة بنجاح' : 'تم إنشاء المجموعة بنجاح', 'success');
+        closeGroupModal();
+        setTimeout(() => location.reload(), 600);
+    } catch (err) {
+        const errBox = document.getElementById('form-error');
+        document.getElementById('form-error-text').textContent = err.message;
+        errBox.classList.remove('hidden');
+    } finally {
+        btn.disabled = false;
+        icon.setAttribute('data-lucide', origIcon);
+        icon.classList.remove('animate-spin');
+        text.textContent = origText;
+        lucide.createIcons();
+    }
+});
+
+// Search
+const searchInput = document.getElementById('group-search');
+searchInput.addEventListener('input', () => {
+    const q = searchInput.value.trim().toLowerCase();
+    const rows = document.querySelectorAll('.group-row');
+    const cards = document.querySelectorAll('.group-card');
+    let visibleCount = 0;
+
+    rows.forEach(row => {
+        const match = row.dataset.name.toLowerCase().includes(q) || row.dataset.code.toLowerCase().includes(q);
+        row.style.display = match ? '' : 'none';
+        if (match) visibleCount++;
+    });
+    cards.forEach(card => {
+        const match = card.dataset.name.toLowerCase().includes(q) || card.dataset.code.toLowerCase().includes(q);
+        card.style.display = match ? '' : 'none';
+    });
+
+    const noResults = document.getElementById('no-results');
+    if (visibleCount === 0 && q) noResults.classList.remove('hidden');
+    else noResults.classList.add('hidden');
+});
+
+// Redistribute with loading
+function handleRedistribute(form) {
+    if (!confirm('سيتم إعادة توزيع الطلاب غير المرتبطين بمجموعات تلقائياً. هل أنت متأكد؟')) return false;
+    const btn = document.getElementById('redistribute-btn');
+    const icon = btn.querySelector('i');
+    icon.setAttribute('data-lucide', 'loader-2');
+    icon.classList.add('animate-spin');
+    btn.disabled = true;
+    lucide.createIcons();
+    return true;
+}
+
+// Toast
+function showToast(message, type) {
+    const toast = document.getElementById('toast');
+    const icon = document.getElementById('toast-icon');
+    const text = document.getElementById('toast-text');
+    text.textContent = message;
+    if (type === 'success') {
+        toast.className = 'fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-2 bg-emerald-500/90 text-white backdrop-blur';
+        icon.setAttribute('data-lucide', 'check-circle');
+    } else {
+        toast.className = 'fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-2 bg-rose-500/90 text-white backdrop-blur';
+        icon.setAttribute('data-lucide', 'alert-circle');
+    }
+    lucide.createIcons();
+    toast.classList.remove('hidden');
+    setTimeout(() => toast.classList.add('hidden'), 3000);
+}
+
+// Close modal on backdrop click & Escape
+document.getElementById('group-modal').addEventListener('click', (e) => {
+    if (e.target.id === 'group-modal') closeGroupModal();
+});
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeGroupModal();
+});
+</script>
+{% endblock %}
