@@ -196,12 +196,25 @@ def public_screen_view(request):
             try:
                 import base64
                 from django.core.files.base import ContentFile
+                if len(profile_picture_data) > 5 * 1024 * 1024:
+                    messages.error(request, 'حجم الصورة الشخصية كبير جدًا (أقصى حد 5 ميجا).')
+                    return redirect('public_screen:public_screen')
                 header, encoded = profile_picture_data.split(',', 1)
                 img_bytes = base64.b64decode(encoded)
+                if len(img_bytes) > 5 * 1024 * 1024:
+                    messages.error(request, 'حجم الصورة الشخصية كبير جدًا (أقصى حد 5 ميجا).')
+                    return redirect('public_screen:public_screen')
                 img_file = ContentFile(img_bytes, name='profile_cropped.jpg')
                 profile_picture_file = process_profile_picture(img_file)
+                if profile_picture_file is None:
+                    messages.error(request, 'الملف المختار مش صورة صالحة.')
+                    return redirect('public_screen:public_screen')
             except Exception:
-                profile_picture_file = None
+                messages.error(request, 'تعذّر معالجة الصورة الشخصية.')
+                return redirect('public_screen:public_screen')
+        else:
+            messages.error(request, 'لازم ترفع صورة شخصية صالحة.')
+            return redirect('public_screen:public_screen')
 
         # معالجة وثيقة التحقق من الشخصية
         id_document_file = None
@@ -209,11 +222,29 @@ def public_screen_view(request):
             try:
                 import base64
                 from django.core.files.base import ContentFile
+                from PIL import Image as PILImage
+                import io
+                if len(id_document_data) > 15 * 1024 * 1024:
+                    messages.error(request, 'حجم وثيقة التحقق كبير جدًا (أقصى حد 15 ميجا).')
+                    return redirect('public_screen:public_screen')
                 header, encoded = id_document_data.split(',', 1)
                 img_bytes = base64.b64decode(encoded)
+                if len(img_bytes) > 15 * 1024 * 1024:
+                    messages.error(request, 'حجم وثيقة التحقق كبير جدًا (أقصى حد 15 ميجا).')
+                    return redirect('public_screen:public_screen')
+                # تحقق من أن الملف صورة فعلاً
+                try:
+                    PILImage.open(io.BytesIO(img_bytes)).verify()
+                except Exception:
+                    messages.error(request, 'وثيقة التحقق لازم تكون صورة صالحة.')
+                    return redirect('public_screen:public_screen')
                 id_document_file = ContentFile(img_bytes, name='id_document.jpg')
             except Exception:
-                id_document_file = None
+                messages.error(request, 'تعذّر معالجة وثيقة التحقق.')
+                return redirect('public_screen:public_screen')
+        else:
+            messages.error(request, 'لازم ترفع وثيقة تحقق من الشخصية صالحة.')
+            return redirect('public_screen:public_screen')
 
         if getattr(event, 'is_education_admin_locked', False):
             locked_admin_str = (getattr(event, 'locked_education_admin', '') or '').strip()

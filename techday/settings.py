@@ -221,8 +221,8 @@ else:
         },
     }
 
-# Upload limits (APK uploads can be large)
-DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get('DATA_UPLOAD_MAX_MEMORY_SIZE', 200 * 1024 * 1024))
+# Upload limits
+DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get('DATA_UPLOAD_MAX_MEMORY_SIZE', 30 * 1024 * 1024))
 FILE_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get('FILE_UPLOAD_MAX_MEMORY_SIZE', 5 * 1024 * 1024))
 
 # Default primary key field type
