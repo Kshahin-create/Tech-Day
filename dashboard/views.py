@@ -967,14 +967,19 @@ def admin_students_list(request):
 
     groups = Group.objects.filter(event=event) if event else Group.objects.all()
 
-    return render(request, 'dashboard/admin_students_list.html', {
+    context = {
         'students': page_obj,
         'page_obj': page_obj,
         'groups': groups,
         'current_event': event,
         'q': q,
         'group_id': group_id,
-    })
+    }
+
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return render(request, 'dashboard/partials/admin_students_table.html', context)
+
+    return render(request, 'dashboard/admin_students_list.html', context)
 
 
 @login_required
