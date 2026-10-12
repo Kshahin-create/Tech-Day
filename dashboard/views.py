@@ -918,8 +918,14 @@ def admin_students_list(request):
     event = Event.get_current()
     students_qs = Student.objects.select_related('group', 'user').all()
 
+    non_student_emails = User.objects.filter(
+        role__in=[User.Roles.ADMIN, User.Roles.SUPERVISOR, User.Roles.VOLUNTEER],
+    ).exclude(email='').values_list('email', flat=True)
+
     students_qs = students_qs.exclude(
         user__role__in=[User.Roles.ADMIN, User.Roles.SUPERVISOR, User.Roles.VOLUNTEER],
+    ).exclude(
+        email__in=non_student_emails,
     )
 
     q = (request.GET.get('q') or '').strip()
@@ -992,8 +998,13 @@ def admin_smart_search(request):
             Q(group__name__icontains=query) |
             Q(group__code__icontains=query)
         ).select_related('group').distinct().order_by('name')
+        non_student_emails = User.objects.filter(
+            role__in=[User.Roles.ADMIN, User.Roles.SUPERVISOR, User.Roles.VOLUNTEER],
+        ).exclude(email='').values_list('email', flat=True)
         results = results.exclude(
             user__role__in=[User.Roles.ADMIN, User.Roles.SUPERVISOR, User.Roles.VOLUNTEER],
+        ).exclude(
+            email__in=non_student_emails,
         )
         
     return render(request, 'dashboard/admin_smart_search.html', {
@@ -1021,6 +1032,10 @@ def admin_current_event_students(request):
 
     students_qs = students_qs.exclude(
         user__role__in=[User.Roles.ADMIN, User.Roles.SUPERVISOR, User.Roles.VOLUNTEER],
+    ).exclude(
+        email__in=User.objects.filter(
+            role__in=[User.Roles.ADMIN, User.Roles.SUPERVISOR, User.Roles.VOLUNTEER],
+        ).exclude(email='').values_list('email', flat=True),
     )
 
     q = (request.GET.get('q') or '').strip()
