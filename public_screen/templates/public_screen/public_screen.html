@@ -918,10 +918,11 @@
             if (birth.getFullYear() !== year || birth.getMonth() !== month - 1 || birth.getDate() !== day) return { valid: false };
             var now = new Date();
             var age = now.getFullYear() - birth.getFullYear();
-            if ((now.getMonth(), now.getDate()) < (birth.getMonth(), birth.getDate())) age--;
+            if (now.getMonth() < birth.getMonth() || (now.getMonth() === birth.getMonth() && now.getDate() < birth.getDate())) age--;
             if (age < 0 || age > 120) return { valid: false };
             var govCode = v.substring(7, 9);
-            var gender = parseInt(v[13], 10) % 2 === 1 ? 'ذكر' : 'أنثى';
+            // الرقم الـ13 (index 12) هو رقم النوع، الأخير رقم تحقق
+            var gender = parseInt(v[12], 10) % 2 === 1 ? 'ذكر' : 'أنثى';
             return {
                 valid: true,
                 birthDate: birth.getFullYear() + '-' + String(birth.getMonth()+1).padStart(2,'0') + '-' + String(birth.getDate()).padStart(2,'0'),

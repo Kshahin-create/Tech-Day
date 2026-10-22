@@ -93,7 +93,9 @@ def parse_egyptian_national_id(national_id, reference_date=None):
     gov_code = national_id[7:9]
     birth_governorate = EGYPT_GOVERNORATES.get(gov_code, 'غير معروف')
 
-    gender_digit = int(national_id[13])
+    # الرقم الـ13 (index 12) هو اللي بيحدد النوع: فردي = ذكر، زوجي = أنثى.
+    # الرقم الـ14 (الأخير) ده رقم تحقق (check digit) وملوش علاقة بالنوع.
+    gender_digit = int(national_id[12])
     gender = 'ذكر' if gender_digit % 2 == 1 else 'أنثى'
 
     result.update({
