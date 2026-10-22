@@ -681,13 +681,31 @@ class StudentRegistrationViewSet(viewsets.ModelViewSet):
         if not student.user:
             username = reg.phone_number
             password = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
-            user = User.objects.create_user(
-                username=username,
-                email=reg.email,
-                password=password,
-                role='student',
-                first_name=reg.full_name_ar.split()[0] if reg.full_name_ar else "",
-            )
+            # إعادة استخدام حساب طالب يتيم (اتحذف الطالب بتاعه) بنفس البريد أو اسم المستخدم
+            orphan = User.objects.filter(
+                Q(email__iexact=reg.email) | Q(username=username),
+                role='student', is_staff=False, is_superuser=False,
+                student_profile__isnull=True,
+            ).first() if reg.email else User.objects.filter(
+                username=username, role='student', is_staff=False, is_superuser=False,
+                student_profile__isnull=True,
+            ).first()
+            if orphan:
+                user = orphan
+                if not User.objects.filter(username=username).exclude(pk=user.pk).exists():
+                    user.username = username
+                user.email = reg.email
+                user.is_active = True
+                user.set_password(password)
+                user.save()
+            else:
+                user = User.objects.create_user(
+                    username=username,
+                    email=reg.email,
+                    password=password,
+                    role='student',
+                    first_name=reg.full_name_ar.split()[0] if reg.full_name_ar else "",
+                )
             student.user = user
             student.save()
             

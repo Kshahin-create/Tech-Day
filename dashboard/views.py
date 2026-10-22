@@ -127,6 +127,39 @@ def require_admin(user):
     return user.is_authenticated and hasattr(user, 'is_admin') and user.is_admin()
 
 
+def _resolve_existing_email_user(email):
+    """
+    يرجع (user_قابل_لإعادة_الاستخدام, رسالة_خطأ) لو فيه حساب بنفس البريد.
+    حسابات الطلاب اليتيمة (اللي الطالب بتاعها اتحذف وفضل الحساب) بيتعاد استخدامها
+    بدل ما تمنع التسجيل. الخطأ بيظهر بس لو البريد فعلاً مربوط بطالب موجود أو بحساب غير طالب.
+    """
+    users = list(User.objects.filter(email__iexact=email))
+    if not users:
+        return None, ''
+    for u in users:
+        if u.is_staff or u.is_superuser or u.role != User.Roles.STUDENT:
+            return None, f'هذا البريد الإلكتروني مستخدم لحساب {u.get_role_display()} ({u.username})، استخدم بريد مختلف.'
+        profile = Student.objects.filter(user=u).first()
+        if profile:
+            return None, (
+                f'هذا البريد الإلكتروني مرتبط بالطالب {profile.name} (رقم {profile.student_id}). '
+                'استخدم "ربط بالطالب الموجود" بدل إنشاء حساب جديد.'
+            )
+    return users[0], ''
+
+
+def _reuse_orphan_student_user(user, student_id, email, password):
+    username = f'student_{student_id}'
+    if not User.objects.filter(username=username).exclude(pk=user.pk).exists():
+        user.username = username
+    user.role = User.Roles.STUDENT
+    user.email = email
+    user.is_active = True
+    user.set_password(password)
+    user.save()
+    return user
+
+
 @login_required
 def admin_sos_poll(request):
     """
@@ -1116,16 +1149,22 @@ def admin_student_create(request):
             )
         user = None
         password_plain = None
+        orphan_user = None
         if email:
-            existing_user_with_email = User.objects.filter(email__iexact=email).exists()
-            if existing_user_with_email:
-                messages.error(request, 'هذا البريد الإلكتروني مستخدم بالفعل لحساب آخر، يرجى إدخال بريد مختلف.')
+            orphan_user, email_error = _resolve_existing_email_user(email)
+            if email_error:
+                messages.error(request, email_error)
                 return render(
                     request,
                     'dashboard/admin_student_form.html',
                     {'groups': groups},
                 )
-        if student_id:
+        if student_id and orphan_user:
+            from django.utils.crypto import get_random_string
+
+            password_plain = get_random_string(10)
+            user = _reuse_orphan_student_user(orphan_user, student_id, email, password_plain)
+        elif student_id:
             username = f'student_{student_id}'
             user, created = User.objects.get_or_create(
                 username=username,
@@ -1744,22 +1783,23 @@ def admin_registration_detail(request, pk):
                 user = None
                 if email:
                     username = f'student_{student_id}'
-                    if User.objects.filter(email__iexact=email).exists():
-                        messages.error(
-                            request,
-                            'هذا البريد الإلكتروني مرتبط بالفعل بحساب آخر، لا يمكن إنشاء حساب جديد بنفس البريد.',
-                        )
+                    orphan_user, email_error = _resolve_existing_email_user(email)
+                    if email_error:
+                        messages.error(request, email_error)
                         return redirect('dashboard:admin_registration_detail', pk=registration.pk)
-                    user, created = User.objects.get_or_create(
-                        username=username,
-                        defaults={'role': User.Roles.STUDENT, 'email': email},
-                    )
                     from django.utils.crypto import get_random_string as get_random_password
 
                     password_plain = get_random_password(10)
-                    user.set_password(password_plain)
-                    user.email = email
-                    user.save()
+                    if orphan_user:
+                        user = _reuse_orphan_student_user(orphan_user, student_id, email, password_plain)
+                    else:
+                        user, created = User.objects.get_or_create(
+                            username=username,
+                            defaults={'role': User.Roles.STUDENT, 'email': email},
+                        )
+                        user.set_password(password_plain)
+                        user.email = email
+                        user.save()
                 student = Student.objects.create(
                     name=registration.full_name_ar,
                     student_id=student_id,
