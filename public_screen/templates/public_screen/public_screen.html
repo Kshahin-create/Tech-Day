@@ -369,6 +369,15 @@
                 <div class="lg:w-2/3 w-full bg-slate-950/30 p-1 rounded-[2.5rem] border border-slate-800/50">
                     <form method="post" class="bg-slate-900/40 p-6 md:p-8 rounded-[2.2rem] space-y-8">
                         {% csrf_token %}
+                        {% if messages %}
+                        {% for message in messages %}{% if message.tags == 'error' %}
+                        <div id="reg-form-error" class="p-4 rounded-2xl bg-rose-500/10 text-rose-400 border border-rose-500/30 text-sm font-bold flex items-center gap-3">
+                            <i data-lucide="alert-circle" class="w-5 h-5 shrink-0"></i>
+                            <span>{{ message }}</span>
+                        </div>
+                        {% endif %}{% endfor %}
+                        {% endif %}
+                        {{ reg_form_data|json_script:"reg-form-data" }}
                         
                         <div class="grid gap-6 md:grid-cols-2">
                             <!-- Name Arabic -->
@@ -524,7 +533,7 @@
                         <div class="space-y-3 group">
                             <label class="text-xs font-bold text-slate-400 group-focus-within:text-cyan-400 transition-colors flex items-center gap-2">
                                 <i data-lucide="camera" class="w-3.5 h-3.5"></i>
-                                الصورة الشخصية <span class="text-rose-400">*</span>
+                                الصورة الشخصية <span class="text-slate-600 font-normal">(اختياري)</span>
                             </label>
                             <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                                 <div id="pp-preview-wrap" class="relative w-24 h-24 rounded-2xl bg-slate-950/60 border-2 border-dashed border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
@@ -533,7 +542,7 @@
                                 </div>
                                 <div class="flex-1 space-y-2 w-full">
                                     <p class="text-[11px] text-slate-500 leading-relaxed">
-                                        لازم تكون صورتك الشخصية واضحة، الوجه باين، وخلفية بيضاء. هيقصها لك النظام تلقائيًا.
+                                        يفضل تكون صورتك الشخصية واضحة، الوجه باين، وخلفية بيضاء. هيقصها لك النظام تلقائيًا.
                                     </p>
                                     <input type="file" id="pp-file" accept="image/*" class="hidden">
                                     <input type="hidden" id="profile_picture" name="profile_picture">
@@ -555,7 +564,7 @@
                         <div class="space-y-3 group">
                             <label class="text-xs font-bold text-slate-400 group-focus-within:text-cyan-400 transition-colors flex items-center gap-2">
                                 <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
-                                صورة وثيقة التحقق من الشخصية <span class="text-rose-400">*</span>
+                                صورة وثيقة التحقق من الشخصية <span class="text-slate-600 font-normal">(اختياري)</span>
                             </label>
                             <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                                 <div id="id-preview-wrap" class="relative w-24 h-24 rounded-2xl bg-slate-950/60 border-2 border-dashed border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
@@ -1042,7 +1051,6 @@
         var ppCropCancel = document.getElementById('pp-crop-cancel');
         var ppCropConfirm = document.getElementById('pp-crop-confirm');
         var ppBgWarning = document.getElementById('pp-bg-warning');
-        var form = document.querySelector('form[method="post"]');
         var cropper = null;
 
         function showError(msg) {
@@ -1178,16 +1186,6 @@
             clearError();
         });
 
-        if (form) {
-            form.addEventListener('submit', function(e) {
-                if (!ppHidden.value) {
-                    e.preventDefault();
-                    showError('لازم ترفع صورة شخصية عشان تقدر ترسل الطلب.');
-                    ppUploadBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    return false;
-                }
-            });
-        }
     })();
 
     (function() {
@@ -1198,7 +1196,6 @@
         var idPlaceholderIcon = document.getElementById('id-placeholder-icon');
         var idHidden = document.getElementById('id_document');
         var idError = document.getElementById('id-error');
-        var form = document.querySelector('form[method="post"]');
 
         function showError(msg) {
             idError.textContent = msg;
@@ -1224,12 +1221,30 @@
             clearError();
             var reader = new FileReader();
             reader.onload = function(ev) {
-                idHidden.value = ev.target.result;
-                idPreview.src = ev.target.result;
-                idPreview.classList.remove('hidden');
-                idPlaceholderIcon.classList.add('hidden');
-                idRemoveBtn.classList.remove('hidden');
-                idUploadBtn.querySelector('span').textContent = 'تغيير الوثيقة';
+                // تصغير صورة الوثيقة قبل الإرسال (صور الموبايل بتكون كبيرة جدًا)
+                var img = new Image();
+                img.onload = function() {
+                    var maxSide = 1600;
+                    var scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+                    var canvas = document.createElement('canvas');
+                    canvas.width = Math.round(img.width * scale);
+                    canvas.height = Math.round(img.height * scale);
+                    var ctx = canvas.getContext('2d');
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    var dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+                    idHidden.value = dataUrl;
+                    idPreview.src = dataUrl;
+                    idPreview.classList.remove('hidden');
+                    idPlaceholderIcon.classList.add('hidden');
+                    idRemoveBtn.classList.remove('hidden');
+                    idUploadBtn.querySelector('span').textContent = 'تغيير الوثيقة';
+                };
+                img.onerror = function() {
+                    showError('تعذّر قراءة الصورة، جرب صورة تانية.');
+                };
+                img.src = ev.target.result;
             };
             reader.readAsDataURL(file);
         });
@@ -1245,16 +1260,49 @@
             clearError();
         });
 
-        if (form) {
-            form.addEventListener('submit', function(e) {
-                if (!idHidden.value) {
-                    e.preventDefault();
-                    showError('لازم ترفع صورة وثيقة التحقق من الشخصية.');
-                    idUploadBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    return false;
-                }
+    })();
+
+    (function() {
+        var form = document.querySelector('form[method="post"]');
+        if (!form) return;
+
+        // رجوع البيانات اللي اتكتبت قبل كده لو السيرفر رجّع خطأ
+        var dataEl = document.getElementById('reg-form-data');
+        var data = null;
+        try { data = dataEl ? JSON.parse(dataEl.textContent) : null; } catch (e) { data = null; }
+        if (data) {
+            Object.keys(data).forEach(function(name) {
+                var el = form.elements[name];
+                if (!el || !data[name]) return;
+                el.value = data[name];
+                el.dispatchEvent(new Event('input'));
             });
+            var errBox = document.getElementById('reg-form-error');
+            if (errBox) errBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
+
+        // منع الضغط مرتين على الإرسال
+        var submitBtn = form.querySelector('button[type="submit"]');
+        function resetBtn() {
+            form.dataset.submitting = '';
+            if (!submitBtn) return;
+            submitBtn.disabled = false;
+            submitBtn.classList.remove('opacity-60', 'cursor-wait');
+            var label = submitBtn.querySelector('span');
+            if (label) label.textContent = 'إرسال الطلب';
+        }
+        form.addEventListener('submit', function(e) {
+            if (e.defaultPrevented) return;
+            if (form.dataset.submitting === '1') { e.preventDefault(); return; }
+            form.dataset.submitting = '1';
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.classList.add('opacity-60', 'cursor-wait');
+                var label = submitBtn.querySelector('span');
+                if (label) label.textContent = 'جاري الإرسال...';
+            }
+        });
+        window.addEventListener('pageshow', resetBtn);
     })();
 </script>
 {% endblock %}

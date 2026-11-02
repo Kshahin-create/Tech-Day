@@ -5,6 +5,7 @@ from django.db import transaction
 from django.db.models import Count, Q, Avg
 from django.http import Http404
 from django.shortcuts import render, redirect
+from django.urls import reverse
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 import os
@@ -117,6 +118,21 @@ def _extract_birth_data_from_national_id(national_id):
     return birth_date.strftime('%Y-%m-%d'), governorate, nid
 
 
+PUBLIC_REG_FORM_FIELDS = (
+    'full_name_ar', 'full_name_en', 'email', 'phone_number', 'national_id',
+    'school', 'education_admin', 'grade', 'interests',
+)
+
+
+def _registration_fail(request, msg):
+    """يحفظ البيانات اللي الطالب كتبها عشان الفورم ميتمسحش بعد الخطأ."""
+    request.session['public_reg_form'] = {
+        k: (request.POST.get(k) or '').strip() for k in PUBLIC_REG_FORM_FIELDS
+    }
+    messages.error(request, msg)
+    return redirect(reverse('public_screen:public_screen') + '#public-registration-card')
+
+
 def public_screen_view(request):
     now = timezone.localtime()
     event = Event.get_current()
@@ -135,12 +151,10 @@ def public_screen_view(request):
 
     if request.method == 'POST':
         if is_closed:
-            messages.error(request, 'عذراً، تم إغلاق باب التسجيل في هذه الفعالية حالياً.')
-            return redirect('public_screen:public_screen')
+            return _registration_fail(request, 'عذراً، تم إغلاق باب التسجيل في هذه الفعالية حالياً.')
         
         if is_full:
-            messages.error(request, 'عذراً، تم الوصول للحد الأقصى للمسجلين في هذه الفعالية.')
-            return redirect('public_screen:public_screen')
+            return _registration_fail(request, 'عذراً، تم الوصول للحد الأقصى للمسجلين في هذه الفعالية.')
         
         full_name_ar = (request.POST.get('full_name_ar') or '').strip()
         full_name_en = (request.POST.get('full_name_en') or '').strip()
@@ -154,8 +168,7 @@ def public_screen_view(request):
         national_id = (request.POST.get('national_id') or '').strip()
         id_document_data = (request.POST.get('id_document') or '').strip()
         if not full_name_ar or not full_name_en or not email or not phone_number or not school or not education_admin or not grade:
-            messages.error(request, 'يرجى ملء جميع الحقول المطلوبة في نموذج التسجيل.')
-            return redirect('public_screen:public_screen')
+            return _registration_fail(request, 'يرجى ملء جميع الحقول المطلوبة في نموذج التسجيل.')
 
         import re
         AR_NAME_RE = re.compile(r'^[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF\s]{2,80}$')
@@ -165,86 +178,51 @@ def public_screen_view(request):
         NID_RE = re.compile(r'^[0-9]{14}$')
 
         if not AR_NAME_RE.match(full_name_ar):
-            messages.error(request, 'الاسم العربي لازم يكون أحرف عربية فقط ومينفعش أرقام أو رموز.')
-            return redirect('public_screen:public_screen')
+            return _registration_fail(request, 'الاسم العربي لازم يكون أحرف عربية فقط ومينفعش أرقام أو رموز.')
         if not EN_NAME_RE.match(full_name_en):
-            messages.error(request, 'الاسم الإنجليزي لازم يكون أحرف إنجليزية فقط ومينفعش أرقام أو رموز.')
-            return redirect('public_screen:public_screen')
+            return _registration_fail(request, 'الاسم الإنجليزي لازم يكون أحرف إنجليزية فقط ومينفعش أرقام أو رموز.')
         if not PHONE_RE.match(phone_number):
-            messages.error(request, 'رقم الموبايل لازم يكون 11 رقم مصري يبدأ بـ 01.')
-            return redirect('public_screen:public_screen')
+            return _registration_fail(request, 'رقم الموبايل لازم يكون 11 رقم مصري يبدأ بـ 01.')
         if not EMAIL_RE.match(email):
-            messages.error(request, 'أدخل بريد إلكتروني صحيح.')
-            return redirect('public_screen:public_screen')
+            return _registration_fail(request, 'أدخل بريد إلكتروني صحيح.')
         if not NID_RE.match(national_id):
-            messages.error(request, 'الرقم القومي لازم يكون 14 رقم.')
-            return redirect('public_screen:public_screen')
+            return _registration_fail(request, 'الرقم القومي لازم يكون 14 رقم.')
 
         # تحليل الرقم القومي واستخراج بيانات الميلاد والنوع والمحافظة
         nid_info = parse_egyptian_national_id(national_id)
         if not nid_info['valid']:
-            messages.error(request, nid_info['error'])
-            return redirect('public_screen:public_screen')
+            return _registration_fail(request, nid_info['error'])
         birth_date = nid_info['birth_date']
         age = nid_info['age']
         birth_governorate = nid_info['birth_governorate']
         gender = nid_info['gender']
 
-        # معالجة الصورة الشخصية (base64 من Cropper.js)
+        # الصورة الشخصية ووثيقة التحقق اختياريين: لو اترفعوا ومينفعوش بنتجاهلهم بدل ما نوقف التسجيل
+        import base64
+        import io
+        from django.core.files.base import ContentFile
+        from PIL import Image as PILImage
+
         profile_picture_file = None
         if profile_picture_data.startswith('data:image'):
             try:
-                import base64
-                from django.core.files.base import ContentFile
-                if len(profile_picture_data) > 5 * 1024 * 1024:
-                    messages.error(request, 'حجم الصورة الشخصية كبير جدًا (أقصى حد 5 ميجا).')
-                    return redirect('public_screen:public_screen')
-                header, encoded = profile_picture_data.split(',', 1)
-                img_bytes = base64.b64decode(encoded)
-                if len(img_bytes) > 5 * 1024 * 1024:
-                    messages.error(request, 'حجم الصورة الشخصية كبير جدًا (أقصى حد 5 ميجا).')
-                    return redirect('public_screen:public_screen')
-                img_file = ContentFile(img_bytes, name='profile_cropped.jpg')
-                profile_picture_file = process_profile_picture(img_file)
-                if profile_picture_file is None:
-                    messages.error(request, 'الملف المختار مش صورة صالحة.')
-                    return redirect('public_screen:public_screen')
+                img_bytes = base64.b64decode(profile_picture_data.split(',', 1)[1])
+                if len(img_bytes) <= 10 * 1024 * 1024:
+                    profile_picture_file = process_profile_picture(ContentFile(img_bytes, name='profile_cropped.jpg'))
             except Exception:
-                messages.error(request, 'تعذّر معالجة الصورة الشخصية.')
-                return redirect('public_screen:public_screen')
-        else:
-            messages.error(request, 'لازم ترفع صورة شخصية صالحة.')
-            return redirect('public_screen:public_screen')
+                logger.exception('Failed to process registration profile picture')
+                profile_picture_file = None
 
-        # معالجة وثيقة التحقق من الشخصية
         id_document_file = None
         if id_document_data.startswith('data:image'):
             try:
-                import base64
-                from django.core.files.base import ContentFile
-                from PIL import Image as PILImage
-                import io
-                if len(id_document_data) > 15 * 1024 * 1024:
-                    messages.error(request, 'حجم وثيقة التحقق كبير جدًا (أقصى حد 15 ميجا).')
-                    return redirect('public_screen:public_screen')
-                header, encoded = id_document_data.split(',', 1)
-                img_bytes = base64.b64decode(encoded)
-                if len(img_bytes) > 15 * 1024 * 1024:
-                    messages.error(request, 'حجم وثيقة التحقق كبير جدًا (أقصى حد 15 ميجا).')
-                    return redirect('public_screen:public_screen')
-                # تحقق من أن الملف صورة فعلاً
-                try:
+                img_bytes = base64.b64decode(id_document_data.split(',', 1)[1])
+                if len(img_bytes) <= 15 * 1024 * 1024:
                     PILImage.open(io.BytesIO(img_bytes)).verify()
-                except Exception:
-                    messages.error(request, 'وثيقة التحقق لازم تكون صورة صالحة.')
-                    return redirect('public_screen:public_screen')
-                id_document_file = ContentFile(img_bytes, name='id_document.jpg')
+                    id_document_file = ContentFile(img_bytes, name='id_document.jpg')
             except Exception:
-                messages.error(request, 'تعذّر معالجة وثيقة التحقق.')
-                return redirect('public_screen:public_screen')
-        else:
-            messages.error(request, 'لازم ترفع وثيقة تحقق من الشخصية صالحة.')
-            return redirect('public_screen:public_screen')
+                logger.exception('Failed to process registration ID document')
+                id_document_file = None
 
         if getattr(event, 'is_education_admin_locked', False):
             locked_admin_str = (getattr(event, 'locked_education_admin', '') or '').strip()
@@ -254,16 +232,14 @@ def public_screen_view(request):
             
             if education_admin not in locked_admins:
                 admin_names = " أو ".join(locked_admins)
-                messages.error(request, f'هذه الفعالية مخصصة لطلاب إدارة {admin_names} فقط.')
-                return redirect('public_screen:public_screen')
+                return _registration_fail(request, f'هذه الفعالية مخصصة لطلاب إدارة {admin_names} فقط.')
         
         # التحقق إذا كان الطالب مسجلاً مسبقاً في النظام (لديه حساب)
         existing_student = Student.objects.filter(Q(email__iexact=email) | Q(phone_number=phone_number)).first()
         
         if existing_student:
             if not getattr(event, 'allow_existing_students_registration', True):
-                messages.error(request, 'التسجيل في هذه الفعالية متاح للطلاب الجدد فقط. في حالة وجود مشكلة تواصل مع الإدارة.')
-                return redirect('public_screen:public_screen')
+                return _registration_fail(request, 'التسجيل في هذه الفعالية متاح للطلاب الجدد فقط. في حالة وجود مشكلة تواصل مع الإدارة.')
             # التحقق إذا كان سجل بالفعل في هذه الفعالية
             already_registered = StudentRegistration.objects.filter(
                 student=existing_student,
@@ -626,6 +602,7 @@ def public_screen_view(request):
         'schedule_groups': schedule_groups,
         'schedule_matrix': schedule_matrix,
     }
+    context['reg_form_data'] = request.session.pop('public_reg_form', None)
     return render(request, 'public_screen/public_screen.html', context)
 
 
