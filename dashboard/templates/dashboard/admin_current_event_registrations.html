@@ -14,7 +14,7 @@
         <p class="text-sm text-slate-400 font-medium">{{ event.location_name }} • {{ event.name }} {{ event.year }}</p>
       </div>
     </div>
-    <div class="flex items-center gap-3">
+    <div class="flex flex-wrap items-center gap-3">
       <a href="{% url 'dashboard:admin_current_event_registrations' %}?status=all" class="px-4 py-2 rounded-2xl border text-[11px] font-bold transition-all {% if status == 'all' %}bg-cyan-500 text-slate-950 border-cyan-400{% else %}bg-slate-800/50 text-slate-300 border-slate-700{% endif %}">
         الكل
       </a>
@@ -24,6 +24,16 @@
       <a href="{% url 'dashboard:admin_current_event_registrations' %}?status=approved" class="px-4 py-2 rounded-2xl border text-[11px] font-bold transition-all {% if status == 'approved' %}bg-emerald-500 text-slate-950 border-emerald-400{% else %}bg-slate-800/50 text-slate-300 border-slate-700{% endif %}">
         تم قبولها <span class="ml-1 text-[10px] text-slate-500">({{ approved_count }})</span>
       </a>
+      {% if pending_count %}
+      <form method="post" action="{% url 'dashboard:admin_bulk_approve_registrations' %}"
+            onsubmit="if (!confirm('هيتم قبول كل الطلبات المعلّقة ({{ pending_count }}) ما عدا المتكررة، وإرسال بيانات الدخول لكل طالب. متأكد؟')) return false; var b=this.querySelector('button'); b.disabled=true; b.querySelector('span').textContent='جاري القبول...';">
+        {% csrf_token %}
+        <button type="submit" class="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 border border-emerald-400 text-[11px] font-black transition-all disabled:opacity-60 disabled:cursor-wait">
+          <i data-lucide="check-check" class="w-4 h-4"></i>
+          <span>قبول الكل (عدا المتكرر)</span>
+        </button>
+      </form>
+      {% endif %}
     </div>
   </div>
 
@@ -67,6 +77,9 @@
             <td class="px-6 py-4">
               {% if reg.status == "pending" %}
               <span class="px-3 py-1 rounded-full bg-amber-500/10 text-amber-500 text-[10px] font-black border border-amber-500/20">قيد المراجعة</span>
+              {% if reg.is_duplicate %}
+              <span class="px-3 py-1 rounded-full bg-rose-500/10 text-rose-400 text-[10px] font-black border border-rose-500/20" title="فيه طالب أو طلب تاني بنفس البريد أو الموبايل أو الاسم والمدرسة">متكرر</span>
+              {% endif %}
               {% elif reg.status == "approved" %}
               <span class="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-[10px] font-black border border-emerald-500/20">تم القبول</span>
               {% else %}

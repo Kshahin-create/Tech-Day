@@ -49,7 +49,7 @@ from .models import (
     StudentViolation, FailedEmail, SOSRequest, BroadcastMessage, 
     StudentSupportRequest, AppVersion
 )
-from techday.utils import send_email_async, get_styled_email_html
+from techday.utils import send_email_async, get_styled_email_html, send_registration_confirmation_email
 
 
 @login_required
@@ -1667,6 +1667,11 @@ def admin_current_event_registrations(request):
     registrations = registrations.order_by('-created_at')
     paginator = Paginator(registrations, 50)
     page_obj = paginator.get_page(request.GET.get('page') or 1)
+    for reg in page_obj:
+        reg.is_duplicate = False
+        if reg.status == StudentRegistration.Status.PENDING:
+            student_matches, reg_matches = _find_registration_matches(reg)
+            reg.is_duplicate = bool(student_matches or reg_matches)
     return render(
         request,
         'dashboard/admin_current_event_registrations.html',
@@ -1679,6 +1684,251 @@ def admin_current_event_registrations(request):
         },
     )
 
+
+def _find_registration_matches(registration):
+    """يرجع (طلاب_مطابقين, طلبات_مطابقة) لنفس البريد أو الموبايل أو الاسم+المدرسة."""
+    email = (registration.email or '').strip()
+    phone = (registration.phone_number or '').strip()
+    name_ar = (registration.full_name_ar or '').strip()
+    school = (registration.school or '').strip()
+    student_q = (Q(name__iexact=name_ar) & Q(school__iexact=school))
+    reg_q = (Q(full_name_ar__iexact=name_ar) & Q(school__iexact=school))
+    if email:
+        student_q |= Q(email__iexact=email)
+        reg_q |= Q(email__iexact=email)
+    if phone:
+        student_q |= Q(phone_number=phone)
+        reg_q |= Q(phone_number=phone)
+    possible_student_matches = list(
+        Student.objects.filter(student_q).distinct().order_by('name')[:10]
+    )
+    possible_registration_matches = list(
+        StudentRegistration.objects.filter(event=registration.event)
+        .filter(reg_q)
+        .exclude(pk=registration.pk)
+        .order_by('-created_at')[:10]
+    )
+    return possible_student_matches, possible_registration_matches
+
+
+def _create_student_from_registration(registration, group=None):
+    """ينشئ طالب جديد + حساب دخول من طلب التسجيل. يرجع (student, user, password_plain, error)."""
+    from django.utils.crypto import get_random_string
+
+    student_id = None
+    for _ in range(10):
+        candidate = get_random_string(6, allowed_chars='0123456789')
+        if not Student.objects.filter(student_id=candidate).exists():
+            student_id = candidate
+            break
+    if not student_id:
+        return None, None, None, 'تعذّر توليد رقم فريد للطالب. حاول مرة أخرى.'
+    email = registration.email or ''
+    user = None
+    password_plain = None
+    if email:
+        username = f'student_{student_id}'
+        orphan_user, email_error = _resolve_existing_email_user(email)
+        if email_error:
+            return None, None, None, email_error
+        password_plain = get_random_string(10)
+        if orphan_user:
+            user = _reuse_orphan_student_user(orphan_user, student_id, email, password_plain)
+        else:
+            user, created = User.objects.get_or_create(
+                username=username,
+                defaults={'role': User.Roles.STUDENT, 'email': email},
+            )
+            user.set_password(password_plain)
+            user.email = email
+            user.save()
+    student = Student.objects.create(
+        name=registration.full_name_ar,
+        student_id=student_id,
+        group=group,
+        school=registration.school,
+        education_admin=registration.education_admin,
+        grade=registration.grade,
+        email=registration.email,
+        phone_number=registration.phone_number,
+        user=user,
+    )
+    return student, user, password_plain, ''
+
+
+def _finalize_registration_approval(registration, student, approved_by):
+    # نسخ الصورة الشخصية من التسجيل إلى حساب الطالب
+    if registration.profile_picture and not student.profile_picture:
+        student.profile_picture = registration.profile_picture
+        student.save(update_fields=['profile_picture'])
+    # نسخ بيانات الرقم القومي إلى حساب الطالب
+    updates = {}
+    if not student.national_id and registration.national_id:
+        updates['national_id'] = registration.national_id
+    if not student.birth_date and registration.birth_date:
+        updates['birth_date'] = registration.birth_date
+    if not student.age and registration.age:
+        updates['age'] = registration.age
+    if not student.birth_governorate and registration.birth_governorate:
+        updates['birth_governorate'] = registration.birth_governorate
+    if not student.gender and registration.gender:
+        updates['gender'] = registration.gender
+    if updates:
+        Student.objects.filter(pk=student.pk).update(**updates)
+    registration.status = StudentRegistration.Status.APPROVED
+    registration.student = student
+    registration.approved_by = approved_by
+    registration.approved_at = timezone.localtime()
+    registration.save()
+    StudentEventStats.objects.get_or_create(student=student, event=registration.event)
+    AdminLog.objects.create(
+        action=f'تمت الموافقة على طلب تسجيل الطالب {registration.full_name_ar}',
+    )
+
+
+def _send_new_student_credentials_email(student, user, password_plain, email):
+    event = Event.get_current()
+    whatsapp_block_text = ""
+    whatsapp_block_html = ""
+    if event.whatsapp_group_link:
+        whatsapp_block_text = f"رابط مجموعة الواتساب للفعالية:\n{event.whatsapp_group_link}\n\n"
+        whatsapp_block_html = f"""
+          <tr>
+            <td style="padding:12px 0 0 0;">
+              <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-radius:16px;background-color:#020617;border:1px solid #25d366;">
+                <tr>
+                  <td style="padding:14px 16px;text-align:center;">
+                    <p style="margin:0 0 10px;font-size:13px;color:#e5e7eb;font-weight:600;">
+                      💬 مجموعة الواتساب الرسمية
+                    </p>
+                    <a href="{event.whatsapp_group_link}"
+                       style="display:inline-block;padding:10px 18px;border-radius:999px;background-color:#25d366;color:#ffffff;font-size:13px;font-weight:700;text-decoration:none;">
+                      الانضمام لمجموعة الواتساب
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        """
+
+    name = student.name
+    username = user.username
+    subject = 'تم قبول طلب تسجيلك في فعالية Tech Day – EduTech Egypt'
+    text_body = (
+        f'مرحبًا {name},\n\n'
+        f'تم قبول طلب تسجيلك للمشاركة في فعالية Tech Day – الفريق التقني بالقليوبية.\n\n'
+        f'تم إنشاء حساب لك على نظام متابعة الفعالية، ويمكنك استخدام البيانات التالية لتسجيل الدخول:\n\n'
+        f'اسم المستخدم: {username}\n'
+        f'كلمة المرور: {password_plain}\n\n'
+        f'رابط تسجيل الدخول: https://td.edutech-egy.com/%D8%AD%D8%B3%D8%A7%D8%A8/%D8%AA%D8%B3%D8%AC%D9%8A%D9%84-%D8%AF%D8%AE%D9%88%D9%84/\n\n'
+        f'{whatsapp_block_text}'
+        f'يمكنك أيضًا استخدام رمز الـ QR المرفق في هذه الرسالة لتسجيل حضورك.\n\n'
+        f'ننصحك بتغيير كلمة المرور بعد أول تسجيل دخول للحفاظ على خصوصية حسابك.\n\n'
+        f'في حال واجهت أي مشكلة في تسجيل الدخول يمكنك التواصل مع فريق الدعم.\n\n'
+        f'تحياتنا،\n'
+        f'EduTech Egypt System'
+    )
+    content_blocks = f"""
+        <div class="td-email-box" style="padding:20px;border-radius:20px;background-color:#0f172a;border:1px solid #1e293b;margin-bottom:20px;">
+          <p class="td-email-text-main" style="margin:0 0 15px;font-size:14px;color:#e5e7eb;font-weight:700;">🔐 بيانات الدخول إلى حسابك</p>
+          <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+              <td style="padding:8px 0;font-size:13px;color:#94a3b8;width:120px;">اسم المستخدم</td>
+              <td style="padding:8px 0;font-size:14px;font-family:monospace;color:#22d3ee;font-weight:700;">{username}</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 0;font-size:13px;color:#94a3b8;">كلمة المرور</td>
+              <td style="padding:8px 0;font-size:14px;font-family:monospace;color:#f97316;font-weight:700;">{password_plain}</td>
+            </tr>
+          </table>
+        </div>
+        {whatsapp_block_html}
+        <div class="td-email-box" style="padding:20px;border-radius:20px;background-color:#0f172a;border:1px solid #1e293b;text-align:center;">
+          <p class="td-email-text-main" style="margin:0 0 12px;font-size:14px;color:#e5e7eb;font-weight:700;">🎫 رمز الـ QR الخاص بحضورك</p>
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data={student.student_id}" alt="QR Code" style="display:block;margin:0 auto;border-radius:12px;border:4px solid #ffffff;box-shadow:0 4px 15px rgba(0,0,0,0.3);">
+          <p class="td-email-text-muted" style="margin:12px 0 0;font-size:12px;color:#94a3b8;">برجاء إظهار هذا الكود عند بوابة الحضور لتسجيل دخولك.</p>
+        </div>
+    """
+    footer_extra = f"""
+        <a href="https://td.edutech-egy.com/%D8%AD%D8%B3%D8%A7%D8%A8/%D8%AA%D8%B3%D8%AC%D9%8A%D9%84-%D8%AF%D8%AE%D9%88%D9%84/" 
+           style="display:inline-block;padding:14px 32px;border-radius:999px;background:linear-gradient(135deg,#06b6d4,#6366f1);color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;box-shadow:0 10px 25px rgba(99,102,241,0.4);">
+          🚀 دخول المنصة الآن
+        </a>
+    """
+    
+    html_body = get_styled_email_html(
+        subject=subject,
+        preview_text="تم قبول طلب تسجيلك في فعالية Tech Day + بيانات الدخول",
+        title=f"🎉 مرحبًا {name}",
+        main_text="تم قبول طلب تسجيلك للمشاركة في فعالية <b>Tech Day</b> بالقليوبية.",
+        content_blocks_html=content_blocks,
+        footer_extra_html=footer_extra
+    )
+    
+    message = EmailMultiAlternatives(
+        subject,
+        text_body,
+        settings.DEFAULT_FROM_EMAIL,
+        [email],
+    )
+    message.attach_alternative(html_body, 'text/html')
+    send_email_async(message, 'إرسال بيانات دخول لطالب تمت الموافقة على تسجيله')
+
+
+@login_required
+def admin_bulk_approve_registrations(request):
+    """قبول كل الطلبات المعلّقة في الفعالية الحالية ما عدا اللي ليها تطابق (متكررة)."""
+    if not require_admin(request.user):
+        return HttpResponseForbidden()
+    if request.method != 'POST':
+        return redirect('dashboard:admin_current_event_registrations')
+    event = Event.get_current()
+    pending = list(
+        StudentRegistration.objects.filter(event=event, status=StudentRegistration.Status.PENDING)
+        .order_by('created_at')
+    )
+    # نحدد المتكررين الأول قبل ما نقبل أي حاجة، عشان القبول نفسه ميأثرش على الفحص
+    to_approve = []
+    skipped = 0
+    for reg in pending:
+        student_matches, reg_matches = _find_registration_matches(reg)
+        if student_matches or reg_matches:
+            skipped += 1
+        else:
+            to_approve.append(reg)
+
+    approved = 0
+    failed = []
+    for reg in to_approve:
+        try:
+            with transaction.atomic():
+                student, user, password_plain, error = _create_student_from_registration(reg)
+                if error:
+                    failed.append(f'{reg.full_name_ar}: {error}')
+                    continue
+                _finalize_registration_approval(reg, student, request.user)
+            approved += 1
+            email = (reg.email or '').strip()
+            if password_plain and email and user:
+                _send_new_student_credentials_email(student, user, password_plain, email)
+        except Exception as e:
+            failed.append(f'{reg.full_name_ar}: {e}')
+
+    AdminLog.objects.create(
+        action=f'قبول جماعي لطلبات التسجيل: {approved} مقبول، {skipped} متكرر تم تخطيه، {len(failed)} فشل',
+    )
+    if approved:
+        messages.success(request, f'تم قبول {approved} طلب وإرسال بيانات الدخول للطلاب.')
+    else:
+        messages.info(request, 'لا توجد طلبات جديدة غير متكررة للقبول.')
+    if skipped:
+        messages.warning(request, f'تم تخطي {skipped} طلب متكرر، راجعهم يدويًا.')
+    for f in failed[:10]:
+        messages.error(request, f'تعذّر قبول {f}')
+    return redirect(reverse('dashboard:admin_current_event_registrations') + '?status=pending')
+
+
 @login_required
 def admin_registration_detail(request, pk):
     if not require_admin(request.user):
@@ -1689,31 +1939,7 @@ def admin_registration_detail(request, pk):
     possible_student_matches = []
     possible_registration_matches = []
     if registration.status == StudentRegistration.Status.PENDING:
-        email = (registration.email or '').strip()
-        phone = (registration.phone_number or '').strip()
-        name_ar = (registration.full_name_ar or '').strip()
-        school = (registration.school or '').strip()
-        possible_student_matches = list(
-            Student.objects.filter(
-                Q(email__iexact=email)
-                | Q(phone_number=phone)
-                | (Q(name__iexact=name_ar) & Q(school__iexact=school))
-            )
-            .distinct()
-            .order_by('name')[:10]
-        )
-        possible_registration_matches = list(
-            StudentRegistration.objects.filter(
-                event=registration.event,
-            )
-            .filter(
-                Q(email__iexact=email)
-                | Q(phone_number=phone)
-                | (Q(full_name_ar__iexact=name_ar) & Q(school__iexact=school))
-            )
-            .exclude(pk=registration.pk)
-            .order_by('-created_at')[:10]
-        )
+        possible_student_matches, possible_registration_matches = _find_registration_matches(registration)
     if request.method == 'POST':
         action = request.POST.get('action') or ''
         if action == 'approve' and registration.status == StudentRegistration.Status.PENDING:
@@ -1768,76 +1994,12 @@ def admin_registration_detail(request, pk):
                     student.group = group
                     student.save(update_fields=['group'])
             else:
-                from django.utils.crypto import get_random_string
-
-                student_id = None
-                for _ in range(10):
-                    candidate = get_random_string(6, allowed_chars='0123456789')
-                    if not Student.objects.filter(student_id=candidate).exists():
-                        student_id = candidate
-                        break
-                if not student_id:
-                    messages.error(request, 'تعذّر توليد رقم فريد للطالب. حاول مرة أخرى.')
+                student, user, password_plain, create_error = _create_student_from_registration(registration, group)
+                if create_error:
+                    messages.error(request, create_error)
                     return redirect('dashboard:admin_registration_detail', pk=registration.pk)
-                email = registration.email or ''
-                user = None
-                if email:
-                    username = f'student_{student_id}'
-                    orphan_user, email_error = _resolve_existing_email_user(email)
-                    if email_error:
-                        messages.error(request, email_error)
-                        return redirect('dashboard:admin_registration_detail', pk=registration.pk)
-                    from django.utils.crypto import get_random_string as get_random_password
-
-                    password_plain = get_random_password(10)
-                    if orphan_user:
-                        user = _reuse_orphan_student_user(orphan_user, student_id, email, password_plain)
-                    else:
-                        user, created = User.objects.get_or_create(
-                            username=username,
-                            defaults={'role': User.Roles.STUDENT, 'email': email},
-                        )
-                        user.set_password(password_plain)
-                        user.email = email
-                        user.save()
-                student = Student.objects.create(
-                    name=registration.full_name_ar,
-                    student_id=student_id,
-                    group=group,
-                    school=registration.school,
-                    education_admin=registration.education_admin,
-                    grade=registration.grade,
-                    email=registration.email,
-                    phone_number=registration.phone_number,
-                    user=user,
-                )
-            # نسخ الصورة الشخصية من التسجيل إلى حساب الطالب
-            if registration.profile_picture and not student.profile_picture:
-                student.profile_picture = registration.profile_picture
-                student.save(update_fields=['profile_picture'])
-            # نسخ بيانات الرقم القومي إلى حساب الطالب
-            updates = {}
-            if not student.national_id and registration.national_id:
-                updates['national_id'] = registration.national_id
-            if not student.birth_date and registration.birth_date:
-                updates['birth_date'] = registration.birth_date
-            if not student.age and registration.age:
-                updates['age'] = registration.age
-            if not student.birth_governorate and registration.birth_governorate:
-                updates['birth_governorate'] = registration.birth_governorate
-            if not student.gender and registration.gender:
-                updates['gender'] = registration.gender
-            if updates:
-                Student.objects.filter(pk=student.pk).update(**updates)
-            registration.status = StudentRegistration.Status.APPROVED
-            registration.student = student
-            registration.approved_by = request.user
-            registration.approved_at = timezone.localtime()
-            registration.save()
-            StudentEventStats.objects.get_or_create(student=student, event=registration.event)
-            AdminLog.objects.create(
-                action=f'تمت الموافقة على طلب تسجيل الطالب {registration.full_name_ar}',
-            )
+                student_id = student.student_id
+            _finalize_registration_approval(registration, student, request.user)
             email = (registration.email or '').strip()
             if link_student_id and email:
                 if not (student.email or '').strip():
@@ -1874,93 +2036,7 @@ def admin_registration_detail(request, pk):
                     return redirect('dashboard:admin_current_event_registrations')
                 return redirect('dashboard:admin_registrations_list')
             if password_plain and email:
-                event = Event.get_current()
-                whatsapp_block_text = ""
-                whatsapp_block_html = ""
-                if event.whatsapp_group_link:
-                    whatsapp_block_text = f"رابط مجموعة الواتساب للفعالية:\n{event.whatsapp_group_link}\n\n"
-                    whatsapp_block_html = f"""
-                      <tr>
-                        <td style="padding:12px 0 0 0;">
-                          <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-radius:16px;background-color:#020617;border:1px solid #25d366;">
-                            <tr>
-                              <td style="padding:14px 16px;text-align:center;">
-                                <p style="margin:0 0 10px;font-size:13px;color:#e5e7eb;font-weight:600;">
-                                  💬 مجموعة الواتساب الرسمية
-                                </p>
-                                <a href="{event.whatsapp_group_link}"
-                                   style="display:inline-block;padding:10px 18px;border-radius:999px;background-color:#25d366;color:#ffffff;font-size:13px;font-weight:700;text-decoration:none;">
-                                  الانضمام لمجموعة الواتساب
-                                </a>
-                              </td>
-                            </tr>
-                          </table>
-                        </td>
-                      </tr>
-                    """
-
-                name = student.name
-                username = user.username
-                subject = 'تم قبول طلب تسجيلك في فعالية Tech Day – EduTech Egypt'
-                text_body = (
-                    f'مرحبًا {name},\n\n'
-                    f'تم قبول طلب تسجيلك للمشاركة في فعالية Tech Day – الفريق التقني بالقليوبية.\n\n'
-                    f'تم إنشاء حساب لك على نظام متابعة الفعالية، ويمكنك استخدام البيانات التالية لتسجيل الدخول:\n\n'
-                    f'اسم المستخدم: {username}\n'
-                    f'كلمة المرور: {password_plain}\n\n'
-                    f'رابط تسجيل الدخول: https://td.edutech-egy.com/%D8%AD%D8%B3%D8%A7%D8%A8/%D8%AA%D8%B3%D8%AC%D9%8A%D9%84-%D8%AF%D8%AE%D9%88%D9%84/\n\n'
-                    f'{whatsapp_block_text}'
-                    f'يمكنك أيضًا استخدام رمز الـ QR المرفق في هذه الرسالة لتسجيل حضورك.\n\n'
-                    f'ننصحك بتغيير كلمة المرور بعد أول تسجيل دخول للحفاظ على خصوصية حسابك.\n\n'
-                    f'في حال واجهت أي مشكلة في تسجيل الدخول يمكنك التواصل مع فريق الدعم.\n\n'
-                    f'تحياتنا،\n'
-                    f'EduTech Egypt System'
-                )
-                content_blocks = f"""
-                    <div class="td-email-box" style="padding:20px;border-radius:20px;background-color:#0f172a;border:1px solid #1e293b;margin-bottom:20px;">
-                      <p class="td-email-text-main" style="margin:0 0 15px;font-size:14px;color:#e5e7eb;font-weight:700;">🔐 بيانات الدخول إلى حسابك</p>
-                      <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
-                        <tr>
-                          <td style="padding:8px 0;font-size:13px;color:#94a3b8;width:120px;">اسم المستخدم</td>
-                          <td style="padding:8px 0;font-size:14px;font-family:monospace;color:#22d3ee;font-weight:700;">{username}</td>
-                        </tr>
-                        <tr>
-                          <td style="padding:8px 0;font-size:13px;color:#94a3b8;">كلمة المرور</td>
-                          <td style="padding:8px 0;font-size:14px;font-family:monospace;color:#f97316;font-weight:700;">{password_plain}</td>
-                        </tr>
-                      </table>
-                    </div>
-                    {whatsapp_block_html}
-                    <div class="td-email-box" style="padding:20px;border-radius:20px;background-color:#0f172a;border:1px solid #1e293b;text-align:center;">
-                      <p class="td-email-text-main" style="margin:0 0 12px;font-size:14px;color:#e5e7eb;font-weight:700;">🎫 رمز الـ QR الخاص بحضورك</p>
-                      <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data={student_id}" alt="QR Code" style="display:block;margin:0 auto;border-radius:12px;border:4px solid #ffffff;box-shadow:0 4px 15px rgba(0,0,0,0.3);">
-                      <p class="td-email-text-muted" style="margin:12px 0 0;font-size:12px;color:#94a3b8;">برجاء إظهار هذا الكود عند بوابة الحضور لتسجيل دخولك.</p>
-                    </div>
-                """
-                footer_extra = f"""
-                    <a href="https://td.edutech-egy.com/%D8%AD%D8%B3%D8%A7%D8%A8/%D8%AA%D8%B3%D8%AC%D9%8A%D9%84-%D8%AF%D8%AE%D9%88%D9%84/" 
-                       style="display:inline-block;padding:14px 32px;border-radius:999px;background:linear-gradient(135deg,#06b6d4,#6366f1);color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;box-shadow:0 10px 25px rgba(99,102,241,0.4);">
-                      🚀 دخول المنصة الآن
-                    </a>
-                """
-                
-                html_body = get_styled_email_html(
-                    subject=subject,
-                    preview_text="تم قبول طلب تسجيلك في فعالية Tech Day + بيانات الدخول",
-                    title=f"🎉 مرحبًا {name}",
-                    main_text="تم قبول طلب تسجيلك للمشاركة في فعالية <b>Tech Day</b> بالقليوبية.",
-                    content_blocks_html=content_blocks,
-                    footer_extra_html=footer_extra
-                )
-                
-                message = EmailMultiAlternatives(
-                    subject,
-                    text_body,
-                    settings.DEFAULT_FROM_EMAIL,
-                    [email],
-                )
-                message.attach_alternative(html_body, 'text/html')
-                send_email_async(message, 'إرسال بيانات دخول لطالب تمت الموافقة على تسجيله')
+                _send_new_student_credentials_email(student, user, password_plain, email)
                 messages.success(
                     request,
                     'تمت الموافقة على طلب التسجيل، سيتم إرسال بيانات الدخول إلى بريد الطالب الإلكتروني.',

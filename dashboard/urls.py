@@ -71,6 +71,7 @@ urlpatterns = [
     path('طلبات-التسجيل/', views.admin_registrations_list, name='admin_registrations_list'),
     path('طلبات-التسجيل/<int:pk>/', views.admin_registration_detail, name='admin_registration_detail'),
     path('طلبات-التسجيل/الفعالية-الحالية/', views.admin_current_event_registrations, name='admin_current_event_registrations'),
+    path('طلبات-التسجيل/الفعالية-الحالية/قبول-الكل/', views.admin_bulk_approve_registrations, name='admin_bulk_approve_registrations'),
     path('إرسال-بريد-مخصص/', views.admin_custom_email, name='admin_custom_email'),
     path('سجل-العمليات/', views.admin_logs, name='admin_logs'),
     path('الإيميلات-المنتظرة/', views.admin_failed_emails_list, name='admin_failed_emails_list'),
